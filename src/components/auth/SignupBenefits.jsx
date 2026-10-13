@@ -5,7 +5,7 @@ import {
     Target,
     TrendingUp,
   } from 'lucide-react'
-import SignupIllustration from './SignUpIllustrations'
+import SignupIllustration from "./SignupIllustrations";
   
   const benefits = [
     { icon: BarChart3, text: 'Track your progress' },
