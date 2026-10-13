@@ -3,7 +3,7 @@ import Footer from "../components/Footer";
 import SignupForm from "../components/auth/SignupForm";
 
 import "./Signup.css";
-import SignupBenefits from "../components/auth/SignUpBenefits";
+import SignupBenefits from "../components/auth/SignupBenefits";
 
 export default function Signup() {
   return (
