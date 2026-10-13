@@ -1,65 +1,28 @@
-import { useState } from 'react'
 import Navbar from '../components/Navbar'
 import Hero from '../components/Hero'
 import SectionHeader from '../components/SectionHeader'
-// import HighlightQuestion from '../components/HighlightQuestion'
-// import QuickStart from '../components/QuickStart'
 import SubjectCard from '../components/SubjectCard'
 import PopularTopics from '../components/PopularTopics'
 import DailyQuestions from '../components/DailyQuestions'
 import PracticeCTA from '../components/PracticeCTA'
 import Footer from '../components/Footer'
+import Container from '../components/ui/Container'
 import { subjects } from '../data/subjects'
-// import { formatDisplayDate } from '../utils/formatDate'
 
 export default function Home() {
-  const [subjectNotice, setSubjectNotice] = useState(null)
-
   return (
-    <div className="home">
+    <div className="flex min-h-svh flex-col">
       <Navbar />
-      <main>
+      <main className="flex-1">
         <Hero />
-
-        {/* <section className="section highlight-section">
-          <div className="container">
-            <SectionHeader
-              title="Today's Challenge"
-              subtitle="A handpicked question to kickstart your practice."
-              meta={formatDisplayDate()}
-            />
-            <div className="highlight-section__grid">
-              <HighlightQuestion />
-              <QuickStart />
+        <section className="py-14 sm:py-16">
+          <Container>
+            <SectionHeader title="Explore by Subject" subtitle="Browse published questions by subject." />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2">
+              {subjects.map((subject) => <SubjectCard key={subject.id} subject={subject} />)}
             </div>
-          </div>
-        </section> */}
-
-        <section className="section subjects-section">
-          <div className="container">
-            <SectionHeader
-              title="Explore by Subject"
-              subtitle="Browse questions by subject and start learning."
-            />
-            {subjectNotice && (
-              <p className="subjects-section__notice" role="status">
-                {subjectNotice}
-              </p>
-            )}
-            <div className="subjects-section__grid">
-              {subjects.map((subject) => (
-                <SubjectCard
-                  key={subject.id}
-                  subject={subject}
-                  onClick={(s) =>
-                    setSubjectNotice(`Question bank for ${s.name} — coming soon.`)
-                  }
-                />
-              ))}
-            </div>
-          </div>
+          </Container>
         </section>
-
         <PopularTopics />
         <DailyQuestions />
         <PracticeCTA />

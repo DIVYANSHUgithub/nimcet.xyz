@@ -1,117 +1,86 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import SocialSignup from "./SocialSignup";
+import { useState } from 'react'
+import { Eye, EyeOff, Lock, Mail, AtSign, UserRound } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import SocialSignup from './SocialSignup'
+import { validateSignup } from '../../utils/validateAuth'
 
-const Icon = ({ children }) => (
-  <svg className="su-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
-);
-const icons = {
-  user: <Icon><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" /></Icon>,
-  mail: <Icon><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></Icon>,
-  at: <Icon><circle cx="12" cy="12" r="4" /><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" /></Icon>,
-  lock: <Icon><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></Icon>,
-};
-const EyeIcon = ({ off }) => (
-  <svg className="su-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
-    {off && <path d="M4 4l16 16" />}
-  </svg>
-);
+const initialValues = { fullName: '', email: '', username: '', password: '', confirmPassword: '' }
 
-const initial = { fullName: "", email: "", username: "", password: "", confirmPassword: "" };
+export default function SignupForm({ onSubmit }) {
+  const [values, setValues] = useState(initialValues)
+  const [errors, setErrors] = useState({})
+  const [show, setShow] = useState({ password: false, confirmPassword: false })
+  const [loading, setLoading] = useState(false)
+  const [notice, setNotice] = useState('')
 
-function validate(v) {
-  const e = {};
-  if (!v.fullName.trim()) e.fullName = "Enter your full name.";
-  if (!v.email.trim()) e.email = "Enter your email address.";
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) e.email = "Enter a valid email address.";
-  if (!v.username.trim()) e.username = "Choose a username.";
-  if (!v.password) e.password = "Create a password.";
-  else if (v.password.length < 6) e.password = "Password must be at least 6 characters.";
-  if (!v.confirmPassword) e.confirmPassword = "Confirm your password.";
-  else if (v.confirmPassword !== v.password) e.confirmPassword = "Passwords do not match.";
-  return e;
-}
+  const handleChange = (event) => {
+    const { name, value } = event.target
+    setValues((current) => ({ ...current, [name]: value }))
+    if (errors[name]) setErrors((current) => ({ ...current, [name]: '' }))
+  }
 
-export default function SignupForm() {
-  const [values, setValues] = useState(initial);
-  const [errors, setErrors] = useState({});
-  const [show, setShow] = useState({ password: false, confirmPassword: false });
-  const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState("");
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    if (loading) return
+    setNotice('')
+    const nextErrors = validateSignup(values)
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length) return
+    setLoading(true)
+    try {
+      const result = await onSubmit?.({
+        fullName: values.fullName.trim(),
+        email: values.email.trim(),
+        username: values.username.trim(),
+        password: values.password,
+      })
+      if (result?.error) setNotice(result.error)
+      else if (result?.message) setNotice(result.message)
+    } catch (error) {
+      console.error('Signup failed:', error)
+      setNotice(error?.message || 'Unable to create your account. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const onChange = (e) => {
-    const { name, value } = e.target;
-    setValues((v) => ({ ...v, [name]: value }));
-    if (errors[name]) setErrors((er) => ({ ...er, [name]: undefined }));
-  };
-
-  const onSubmit = (e) => {
-    e.preventDefault();
-    setNotice("");
-    const found = validate(values);
-    setErrors(found);
-    if (Object.keys(found).length) return;
-    setLoading(true);
-    // Frontend only: no account is created and nothing is stored.
-    setTimeout(() => {
-      setLoading(false);
-      setNotice("Account creation will be connected when authentication is added.");
-    }, 600);
-  };
-
-  const field = (name, label, placeholder, icon, opts = {}) => {
-    const isPw = opts.password;
-    const id = `su-${name}`;
-    const err = errors[name];
-    const describedBy = [err && `${id}-err`, opts.hint && `${id}-hint`].filter(Boolean).join(" ") || undefined;
-    return (
-      <div className="su-field">
-        <label htmlFor={id}>{label}</label>
-        <div className={`su-input${err ? " su-input--error" : ""}`}>
-          {icons[icon]}
-          <input
-            id={id} name={name} value={values[name]} onChange={onChange}
-            type={isPw ? (show[name] ? "text" : "password") : opts.type || "text"}
-            placeholder={placeholder} autoComplete={opts.autoComplete}
-            aria-invalid={!!err} aria-describedby={describedBy}
-          />
-          {isPw && (
-            <button type="button" className="su-eye" onClick={() => setShow((s) => ({ ...s, [name]: !s[name] }))}
-              aria-label={show[name] ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`} aria-pressed={show[name]}>
-              <EyeIcon off={!show[name]} />
-            </button>
-          )}
-        </div>
-        {err && <p className="su-error" id={`${id}-err`} role="alert">{err}</p>}
-        {opts.hint && !err && <p className="su-hint" id={`${id}-hint`}>{opts.hint}</p>}
-      </div>
-    );
-  };
+  const fields = [
+    { name: 'fullName', label: 'Full name', placeholder: 'Enter your full name', type: 'text', autoComplete: 'name', Icon: UserRound },
+    { name: 'email', label: 'Email address', placeholder: 'Enter your email address', type: 'email', autoComplete: 'email', Icon: Mail },
+    { name: 'username', label: 'Username', placeholder: 'Choose a username', type: 'text', autoComplete: 'username', Icon: AtSign },
+    { name: 'password', label: 'Password', placeholder: 'Create a password', type: 'password', autoComplete: 'new-password', Icon: Lock },
+    { name: 'confirmPassword', label: 'Confirm password', placeholder: 'Confirm your password', type: 'password', autoComplete: 'new-password', Icon: Lock },
+  ]
 
   return (
-    <section className="su-left" aria-labelledby="su-title">
-      <h1 id="su-title">Create Your Account</h1>
-      <p className="su-sub">Join NIMCET.XYZ and take your preparation to the next level.</p>
-
-      <form onSubmit={onSubmit} noValidate>
-        {field("fullName", "Full Name", "Enter your full name", "user", { autoComplete: "name" })}
-        {field("email", "Email Address", "Enter your email address", "mail", { type: "email", autoComplete: "email" })}
-        {field("username", "Username", "Choose a username", "at", { autoComplete: "username" })}
-        {field("password", "Password", "Create a password", "lock", { password: true, autoComplete: "new-password", hint: "Must be at least 6 characters" })}
-        {field("confirmPassword", "Confirm Password", "Confirm your password", "lock", { password: true, autoComplete: "new-password" })}
-
-        <button type="submit" className="su-primary" disabled={loading}>
-          {loading ? "Creating account…" : "Create Account"}
+    <section className="px-5 py-7 md:px-10 md:py-10" aria-labelledby="signup-title">
+      <h1 id="signup-title" className="text-[clamp(1.75rem,3vw,2.125rem)] font-bold leading-tight tracking-tight text-ink-heading">Create your account</h1>
+      <p className="mb-6 mt-2 text-sm leading-6 text-ink-muted">Join NIMCET.XYZ and take your preparation forward.</p>
+      <form onSubmit={handleSubmit} noValidate>
+        {fields.map(({ name, label, placeholder, type, autoComplete, Icon }) => {
+          const isPassword = type === 'password'
+          const inputType = isPassword ? (show[name] ? 'text' : 'password') : type
+          const errorId = `signup-${name}-error`
+          return (
+            <div className="mb-4" key={name}>
+              <label htmlFor={`signup-${name}`} className="mb-1.5 block text-sm font-medium text-ink-heading">{label}</label>
+              <div className={`flex min-h-11 items-center gap-3 rounded-md border bg-surface px-3 focus-within:ring-2 focus-within:ring-brand/15 ${errors[name] ? 'border-danger-fg' : 'border-line-strong'}`}>
+                <Icon size={17} className="shrink-0 text-ink-muted" aria-hidden="true" />
+                <input id={`signup-${name}`} name={name} value={values[name]} onChange={handleChange} type={inputType} placeholder={placeholder} autoComplete={autoComplete} className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-ink-heading outline-none placeholder:text-ink-muted" aria-invalid={Boolean(errors[name])} aria-describedby={errors[name] ? errorId : undefined} />
+                {isPassword && <button type="button" className="grid size-8 place-items-center rounded-md text-ink-muted hover:bg-canvas-muted hover:text-ink-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" onClick={() => setShow((current) => ({ ...current, [name]: !current[name] }))} aria-label={show[name] ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`} aria-pressed={show[name]}>{show[name] ? <EyeOff size={17} /> : <Eye size={17} />}</button>}
+              </div>
+              {errors[name] && <p id={errorId} className="mt-1.5 text-xs text-danger" role="alert">{errors[name]}</p>}
+              {name === 'password' && !errors.password && <p className="mt-1.5 text-xs text-ink-muted">At least 6 characters.</p>}
+            </div>
+          )
+        })}
+        <button type="submit" className="mt-1 min-h-12 w-full rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60" disabled={loading}>
+          {loading ? 'Creating account…' : 'Create account'}
         </button>
-        {notice && <p className="su-notice" role="status">{notice}</p>}
+        {notice && <p className="mt-3 rounded-md border border-line bg-canvas-muted px-3 py-2.5 text-sm text-ink" role="status">{notice}</p>}
       </form>
-
       <SocialSignup />
-
-      <p className="su-login">
-        Already have an account? <Link to="/login">Login</Link>
-      </p>
+      <p className="mt-5 text-center text-sm text-ink-muted">Already have an account? <Link className="font-semibold text-ink-heading underline underline-offset-4" to="/login">Log in</Link></p>
     </section>
-  );
+  )
 }

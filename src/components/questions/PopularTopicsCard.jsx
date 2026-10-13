@@ -1,26 +1,23 @@
-import { ArrowRight } from 'lucide-react'
-import { popularTopicsRanked } from '../../data/questionBank'
+import { featuredQuestionTopics } from '../../data/topics'
 
-export default function PopularTopicsCard() {
+export default function PopularTopicsCard({ onTopicSelect }) {
   return (
-    <div className="qb-panel popular-topics-card">
-      <h2 className="qb-panel__title">Popular Topics</h2>
-      <p className="popular-topics-card__subtitle">Most practiced topics this month</p>
-      <ol className="popular-topics-card__list">
-        {popularTopicsRanked.map((item, index) => (
-          <li key={item.name}>
-            <button type="button" className="popular-topics-card__row">
-              <span className="popular-topics-card__rank">{index + 1}</span>
-              <span className="popular-topics-card__name">{item.name}</span>
-              <span className="popular-topics-card__count">{item.count}</span>
+    <section className="rounded-xl border border-line bg-surface p-4">
+      <h2 className="mb-1 text-sm font-semibold text-ink-heading">Browse topics</h2>
+      <p className="mb-3 text-xs text-ink-muted">Topic names verified in the published question set.</p>
+      <ul className="space-y-1">
+        {featuredQuestionTopics.map((topic) => (
+          <li key={topic}>
+            <button
+              type="button"
+              className="min-h-9 w-full rounded-md px-2 text-left text-sm text-ink transition-colors hover:bg-canvas-muted hover:text-ink-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              onClick={() => onTopicSelect?.(topic)}
+            >
+              {topic}
             </button>
           </li>
         ))}
-      </ol>
-      <button type="button" className="popular-topics-card__all">
-        View All Topics
-        <ArrowRight size={16} />
-      </button>
-    </div>
+      </ul>
+    </section>
   )
 }

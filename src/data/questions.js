@@ -1,20 +1,11 @@
-export const highlightQuestion = {
-  subject: 'Mathematics',
-  chapter: 'Algebra',
-  topic: 'Quadratic Equations',
-  difficulty: 'Medium',
-  question: 'If x² − 5x + 6 = 0, then the roots of the equation are:',
-  options: ['1, 2', '2, 3', '3, 4', '1, 3'],
-  answer: 'B. 2, 3',
-  explanation:
-    'Factorising: x² − 5x + 6 = (x − 2)(x − 3) = 0, so x = 2 or x = 3. The roots are 2 and 3.',
-}
-
 export const dailyQuestionsTopic = 'Probability'
 
 export const dailyQuestions = [
   {
     id: 1,
+    // The displayed summation, selected answer, and probability explanation conflict.
+    // Exclude until an authoritative source confirms the original question and answer.
+    verificationStatus: 'needs-review',
     topic: 'Probability',
     difficulty: 'Medium',
     question:

@@ -1,31 +1,23 @@
 import { Link } from 'react-router-dom'
-import { BarChart3, Bookmark, ClipboardCheck, Target } from 'lucide-react'
-
-const benefits = [
-  { icon: ClipboardCheck, text: 'Attempt questions' },
-  { icon: Bookmark, text: 'Save important questions' },
-  { icon: Target, text: 'Track your accuracy' },
-  { icon: BarChart3, text: 'Get topic-wise analytics' },
-]
+import { BookOpenCheck, SearchCheck } from 'lucide-react'
 
 export default function PracticeCard() {
   return (
-    <div className="qb-panel practice-card">
-      <h2 className="qb-panel__title">Your Practice</h2>
-      <p className="practice-card__subtitle">Login to track your progress</p>
-      <ul className="practice-card__list">
-        {benefits.map(({ icon: Icon, text }) => (
-          <li key={text} className="practice-card__item">
-            <span className="practice-card__icon">
-              <Icon size={15} strokeWidth={1.75} />
-            </span>
-            {text}
-          </li>
-        ))}
+    <section className="rounded-xl border border-line bg-surface p-4">
+      <h2 className="mb-1 text-sm font-semibold text-ink-heading">Practice with published questions</h2>
+      <p className="mb-4 text-xs leading-relaxed text-ink-muted">
+        Browse questions, review answer keys, and read the explanations currently available.
+      </p>
+      <ul className="mb-4 space-y-2 text-xs text-ink">
+        <li className="flex items-center gap-2"><SearchCheck size={15} className="text-ink-muted" /> Filter questions by topic and exam year</li>
+        <li className="flex items-center gap-2"><BookOpenCheck size={15} className="text-ink-muted" /> Open full question details</li>
       </ul>
-      <Link to="/login" className="btn btn--primary btn--full practice-card__cta">
-        Login to Practice
+      <Link
+        to="/questions"
+        className="inline-flex min-h-10 w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-medium text-white transition-colors hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      >
+        Browse questions
       </Link>
-    </div>
+    </section>
   )
 }

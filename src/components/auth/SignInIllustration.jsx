@@ -1,6 +1,6 @@
 export default function SignInIllustration() {
   return (
-    <div className="hero-illustration">
+    <div className="[display:none] [justify-content:center] lg:[display:flex] [width:100%] [max-width:320px] [height:auto]">
       <svg
         viewBox="0 0 320 220"
         fill="none"

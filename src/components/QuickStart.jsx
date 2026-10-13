@@ -1,96 +1,27 @@
 import { useState } from 'react'
-import {
-  Archive,
-  BookOpen,
-  ChevronRight,
-  ClipboardList,
-  FileQuestion,
-  Timer,
-} from 'lucide-react'
-import LoginPrompt from './LoginPrompt'
+import { Link } from 'react-router-dom'
+import { Archive, ClipboardList, FileQuestion, Timer } from 'lucide-react'
+import Toast from './Toast'
 
-const items = [
-  {
-    label: 'Question Bank',
-    icon: Archive,
-    requiresLogin: false,
-    href: '/questions',
-  },
-  {
-    label: 'Practice Questions',
-    icon: BookOpen,
-    requiresLogin: true,
-    message: 'Sign in to start a guided practice session.',
-  },
-  {
-    label: 'Take a Quiz',
-    icon: ClipboardList,
-    requiresLogin: true,
-    message: 'Sign in to attempt quizzes and track your scores.',
-  },
-  {
-    label: 'Mock Tests',
-    icon: Timer,
-    requiresLogin: true,
-    message: 'Sign in to take full-length mock tests.',
-  },
-  {
-    label: 'Previous Year Questions',
-    icon: FileQuestion,
-    requiresLogin: false,
-    href: '#pyqs',
-  },
+const unavailable = [
+  { label: 'Previous year questions', icon: FileQuestion, message: 'Previous-year questions are not included in the published dataset.' },
+  { label: 'Quizzes', icon: ClipboardList, message: 'A quiz engine is not available yet.' },
+  { label: 'Mock tests', icon: Timer, message: 'Mock tests are not available yet.' },
 ]
 
 export default function QuickStart() {
-  const [loginMessage, setLoginMessage] = useState(null)
-
-  const handleClick = (item) => {
-    if (item.requiresLogin) {
-      setLoginMessage(item.message)
-    }
-  }
-
+  const [notice, setNotice] = useState('')
   return (
     <>
-      <aside className="quick-start">
-        <h3 className="quick-start__title">Quick Start</h3>
-        <p className="quick-start__subtitle">Jump into your preparation.</p>
-        <ul className="quick-start__list">
-          {items.map((item) => {
-            const Icon = item.icon
-            const content = (
-              <>
-                <span className="quick-start__icon">
-                  <Icon size={18} />
-                </span>
-                <span className="quick-start__label">{item.label}</span>
-                <ChevronRight size={18} className="quick-start__arrow" />
-              </>
-            )
-
-            return (
-              <li key={item.label}>
-                {item.href && !item.requiresLogin ? (
-                  <a href={item.href} className="quick-start__item">
-                    {content}
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    className="quick-start__item"
-                    onClick={() => handleClick(item)}
-                  >
-                    {content}
-                  </button>
-                )}
-              </li>
-            )
-          })}
+      <aside className="rounded-xl border border-line bg-surface p-5">
+        <h2 className="text-base font-semibold text-ink-heading">Quick start</h2>
+        <p className="mb-3 mt-1 text-sm text-ink-muted">Choose a study area.</p>
+        <ul className="divide-y divide-line">
+          <li><Link to="/questions" className="flex min-h-12 items-center gap-3 py-2 text-sm font-medium text-ink-heading hover:text-brand"><Archive size={18} className="text-ink-muted" />Question bank</Link></li>
+          {unavailable.map(({ label, icon: Icon, message }) => <li key={label}><button type="button" className="flex min-h-12 w-full items-center gap-3 py-2 text-left text-sm font-medium text-ink-heading hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" onClick={() => setNotice(message)}><Icon size={18} className="text-ink-muted" />{label}<span className="ml-auto text-xs font-normal text-ink-muted">Unavailable</span></button></li>)}
         </ul>
       </aside>
-
-      <LoginPrompt message={loginMessage} onClose={() => setLoginMessage(null)} />
+      <Toast message={notice} onDismiss={() => setNotice('')} />
     </>
   )
 }

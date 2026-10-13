@@ -2,7 +2,7 @@
 
 export default function HeroIllustration() {
   return (
-    <div className="hero-illustration" >
+    <div className="[display:none] [justify-content:center] lg:[display:flex] [width:100%] [max-width:320px] [height:auto]" >
       <svg viewBox="0 0 320 280" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="40" y="30" width="180" height="220" rx="8" stroke="#d1d5db" strokeWidth="1.5" fill="#fafafa" />
         <rect x="56" y="52" width="80" height="8" rx="2" fill="#e5e7eb" />

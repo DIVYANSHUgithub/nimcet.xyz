@@ -1,3 +1,5 @@
+import { cn } from '../lib/cn'
+
 export default function SectionHeader({
   title,
   subtitle,
@@ -6,15 +8,28 @@ export default function SectionHeader({
   className = '',
 }) {
   return (
-    <div className={`section-header ${className}`}>
-      <div className="section-header__text">
-        <h2 className="section-header__title">{title}</h2>
-        {subtitle && <p className="section-header__subtitle">{subtitle}</p>}
+    <div
+      className={cn(
+        'mb-7 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between',
+        className
+      )}
+    >
+      <div>
+        <h2 className="mb-1.5 text-[clamp(1.375rem,2.5vw,1.625rem)] font-bold tracking-tight text-ink-heading">
+          {title}
+        </h2>
+        {subtitle && (
+          <p className="max-w-xl text-[0.9375rem] text-ink-muted">{subtitle}</p>
+        )}
       </div>
       {(meta || action) && (
-        <div className="section-header__aside">
+        <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end sm:text-right">
           {action}
-          {meta && <span className="section-header__meta">{meta}</span>}
+          {meta && (
+            <span className="whitespace-nowrap text-[0.8125rem] text-ink-muted">
+              {meta}
+            </span>
+          )}
         </div>
       )}
     </div>

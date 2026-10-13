@@ -1,11 +1,11 @@
 import PracticeCard from './PracticeCard'
 import PopularTopicsCard from './PopularTopicsCard'
 
-export default function QuestionBankRightSidebar() {
+export default function QuestionBankRightSidebar({ onTopicSelect, className = '' }) {
   return (
-    <aside className="qb-sidebar qb-sidebar--right" aria-label="Practice and topics">
+    <aside className={`flex flex-col gap-4 ${className}`} aria-label="Practice and topics">
       <PracticeCard />
-      <PopularTopicsCard />
+      <PopularTopicsCard onTopicSelect={onTopicSelect} />
     </aside>
   )
 }

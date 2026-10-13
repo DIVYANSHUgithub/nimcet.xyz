@@ -1,41 +1,34 @@
 import { useState } from 'react'
 import SectionHeader from './SectionHeader'
 import DailyQuestionCard from './DailyQuestionCard'
+import Container from './ui/Container'
 import { dailyQuestions, dailyQuestionsTopic } from '../data/questions'
 import { formatDisplayDate } from '../utils/formatDate'
 
 export default function DailyQuestions() {
   const [expandedId, setExpandedId] = useState(null)
+  const verifiedQuestions = dailyQuestions.filter((question) => question.verificationStatus !== 'needs-review')
 
-  const handleToggle = (id) => {
-    setExpandedId((prev) => (prev === id ? null : id))
-  }
+  const handleToggle = (id) => setExpandedId((previous) => previous === id ? null : id)
 
   return (
-    <section className="section daily-questions">
-      <div className="container">
-        <SectionHeader
-          title="10 Questions of the Day"
-          subtitle={`Today's focus: ${dailyQuestionsTopic}`}
-          meta={formatDisplayDate()}
-        />
-        <p className="daily-questions__intro">
-          Here are 10 carefully selected NIMCET questions on {dailyQuestionsTopic} to help
-          you practice.
-        </p>
-        <div className="daily-questions__list">
-          {dailyQuestions.map((q, i) => (
+    <section className="bg-canvas-muted py-14 sm:py-16">
+      <Container>
+        <SectionHeader title="Questions of the Day" subtitle={`Today's focus: ${dailyQuestionsTopic}`} meta={formatDisplayDate()} />
+        <p className="mb-6 max-w-2xl text-sm leading-6 text-ink-muted">Practice questions on {dailyQuestionsTopic} with worked explanations.</p>
+        <div className="space-y-3">
+          {verifiedQuestions.map((question, index) => (
             <DailyQuestionCard
-              key={q.id}
-              question={q}
-              index={i}
-              total={dailyQuestions.length}
-              isExpanded={expandedId === q.id}
-              onToggle={() => handleToggle(q.id)}
+              key={question.id}
+              question={question}
+              index={index}
+              total={verifiedQuestions.length}
+              isExpanded={expandedId === question.id}
+              onToggle={() => handleToggle(question.id)}
             />
           ))}
         </div>
-      </div>
+      </Container>
     </section>
   )
 }

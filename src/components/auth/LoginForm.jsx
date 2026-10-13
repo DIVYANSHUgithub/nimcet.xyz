@@ -1,124 +1,57 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Lock, User } from 'lucide-react'
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import SocialLogin from './SocialLogin'
+import { validateLogin } from '../../utils/validateAuth'
 
-export default function LoginForm({ onSubmit, onSocialClick, isLoading }) {
-  const [identifier, setIdentifier] = useState('')
+export default function LoginForm({ onSubmit, onForgotPassword, isLoading, isRecoveryLoading }) {
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState({})
 
-  const validate = () => {
-    const next = {}
-    if (!identifier.trim()) {
-      next.identifier = 'Enter your email or username.'
-    }
-    if (!password) {
-      next.password = 'Enter your password.'
-    }
-    setErrors(next)
-    return Object.keys(next).length === 0
-  }
-
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    if (!validate()) return
-    onSubmit?.({ identifier: identifier.trim(), password })
+  const handleSubmit = (event) => {
+    event.preventDefault()
+    if (isLoading) return
+    const nextErrors = validateLogin({ email, password })
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length) return
+    onSubmit?.({ email: email.trim(), password })
   }
 
   return (
-    <div className="login-form">
-      <div className="login-form__header">
-        <h1 className="login-form__title">Welcome Back</h1>
-        <p className="login-form__subtitle">Login to continue your NIMCET preparation.</p>
-      </div>
-
-      <form className="login-form__form" onSubmit={handleSubmit} noValidate>
-        <div className="form-field">
-          <label htmlFor="login-identifier" className="form-field__label">
-            Email or Username
-          </label>
-          <div className={`form-field__input-wrap ${errors.identifier ? 'form-field__input-wrap--error' : ''}`}>
-            <User size={18} className="form-field__icon" aria-hidden="true" />
-            <input
-              id="login-identifier"
-              type="text"
-              name="identifier"
-              className="form-field__input"
-              placeholder="Enter your email or username"
-              value={identifier}
-              onChange={(e) => {
-                setIdentifier(e.target.value)
-                if (errors.identifier) setErrors((prev) => ({ ...prev, identifier: undefined }))
-              }}
-              autoComplete="username"
-              aria-invalid={Boolean(errors.identifier)}
-              aria-describedby={errors.identifier ? 'login-identifier-error' : undefined}
-            />
+    <section className="p-5 sm:p-8 lg:p-10" aria-labelledby="login-title">
+      <header className="mb-6">
+        <h1 id="login-title" className="text-3xl font-bold tracking-tight text-ink-heading">Welcome back</h1>
+        <p className="mt-2 text-sm leading-6 text-ink-muted">Log in to your NIMCET.XYZ account.</p>
+      </header>
+      <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+        <div>
+          <label htmlFor="login-email" className="mb-1.5 block text-sm font-semibold text-ink-heading">Email address</label>
+          <div className={`flex min-h-12 items-center gap-3 rounded-md border px-3 focus-within:ring-2 focus-within:ring-brand/15 ${errors.email ? 'border-danger-fg' : 'border-line-strong'}`}>
+            <Mail size={18} className="shrink-0 text-ink-muted" aria-hidden="true" />
+            <input id="login-email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); if (errors.email) setErrors((current) => ({ ...current, email: '' })) }} className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-ink-heading outline-none placeholder:text-ink-muted" placeholder="name@example.com" aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'login-email-error' : undefined} />
           </div>
-          {errors.identifier && (
-            <p id="login-identifier-error" className="form-field__error" role="alert">
-              {errors.identifier}
-            </p>
-          )}
+          {errors.email && <p id="login-email-error" className="mt-1.5 text-xs text-danger" role="alert">{errors.email}</p>}
         </div>
 
-        <div className="form-field">
-          <div className="form-field__label-row">
-            <label htmlFor="login-password" className="form-field__label">
-              Password
-            </label>
-            <button type="button" className="form-field__link">
-              Forgot password?
-            </button>
+        <div>
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <label htmlFor="login-password" className="text-sm font-semibold text-ink-heading">Password</label>
+            <button type="button" disabled={isRecoveryLoading} onClick={() => !isRecoveryLoading && onForgotPassword?.(email.trim())} className="text-xs font-medium text-ink-muted underline underline-offset-2 hover:text-ink-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60">{isRecoveryLoading ? 'Sending…' : 'Forgot password?'}</button>
           </div>
-          <div className={`form-field__input-wrap ${errors.password ? 'form-field__input-wrap--error' : ''}`}>
-            <Lock size={18} className="form-field__icon" aria-hidden="true" />
-            <input
-              id="login-password"
-              type={showPassword ? 'text' : 'password'}
-              name="password"
-              className="form-field__input"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value)
-                if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }))
-              }}
-              autoComplete="current-password"
-              aria-invalid={Boolean(errors.password)}
-              aria-describedby={errors.password ? 'login-password-error' : undefined}
-            />
-            <button
-              type="button"
-              className="form-field__toggle"
-              onClick={() => setShowPassword(!showPassword)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
+          <div className={`flex min-h-12 items-center gap-3 rounded-md border px-3 focus-within:ring-2 focus-within:ring-brand/15 ${errors.password ? 'border-danger-fg' : 'border-line-strong'}`}>
+            <Lock size={18} className="shrink-0 text-ink-muted" aria-hidden="true" />
+            <input id="login-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => { setPassword(event.target.value); if (errors.password) setErrors((current) => ({ ...current, password: '' })) }} className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-ink-heading outline-none placeholder:text-ink-muted" placeholder="Enter your password" aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? 'login-password-error' : undefined} />
+            <button type="button" className="grid size-8 shrink-0 place-items-center rounded-md text-ink-muted hover:bg-canvas-muted hover:text-ink-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
           </div>
-          {errors.password && (
-            <p id="login-password-error" className="form-field__error" role="alert">
-              {errors.password}
-            </p>
-          )}
+          {errors.password && <p id="login-password-error" className="mt-1.5 text-xs text-danger" role="alert">{errors.password}</p>}
         </div>
 
-        <button type="submit" className="btn btn--primary btn--full login-form__submit" disabled={isLoading}>
-          {isLoading ? 'Logging in…' : 'Login'}
-        </button>
+        <button type="submit" className="min-h-12 w-full rounded-md bg-brand px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60" disabled={isLoading}>{isLoading ? 'Logging in…' : 'Log in'}</button>
       </form>
-
-      <SocialLogin onSocialClick={onSocialClick} />
-
-      <p className="login-form__signup">
-        Don&apos;t have an account?{' '}
-        <Link to="/signup" className="login-form__signup-link">
-          Sign Up
-        </Link>
-      </p>
-    </div>
+      <SocialLogin />
+      <p className="mt-6 text-center text-sm text-ink-muted">Don&apos;t have an account? <Link to="/signup" className="font-semibold text-ink-heading underline underline-offset-2 hover:text-ink-muted">Sign up</Link></p>
+    </section>
   )
 }
