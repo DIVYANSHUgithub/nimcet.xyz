@@ -18,7 +18,13 @@ The inspected table does not include a chapter, question type, popularity/import
 
 Email/password signup and login use Supabase Auth. Configure the local app origin as a Supabase Site URL/redirect allowlist, including the `/login` confirmation redirect and `/reset-password` recovery route. Username is currently saved as Auth user metadata; there is no public profile table or username uniqueness constraint in this repository.
 
-Google OAuth and GitHub OAuth remain unavailable in the UI because the provider settings and redirect configuration for the connected Supabase project have not been verified. Enable a provider in Supabase and verify its callback URLs before making it available. The frontend uses only the anon key; do not expose administrative credentials.
+Google and GitHub buttons on both the login and signup pages start Supabase OAuth and return signed-in users to `/questions`. OAuth-created accounts use the same Supabase Auth user records as email signup; the username field is only collected by email signup.
+
+To enable a provider, open **Authentication → Providers** in the Supabase dashboard and add that provider's OAuth client ID and client secret. In Google Cloud or GitHub, register this as the provider callback URL:
+
+`https://fchvtcnhabmnlfxsrzvu.supabase.co/auth/v1/callback`
+
+In **Authentication → URL Configuration**, set the production Site URL and add the production redirect URL `https://nimcet.xyz/questions`. For local development, also allow the local URL such as `http://localhost:5173/questions` (use the Vite URL shown by `npm run dev`). Provider setup and redirect allowlisting are required before the buttons can complete sign-in. The frontend uses only the Supabase anon key; never expose a service-role key or put OAuth client secrets in this app.
 
 ## Styling and checks
 
