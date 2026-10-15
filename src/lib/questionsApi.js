@@ -91,7 +91,23 @@ export async function getQuestionById(id, { signal } = {}) {
   return data
 }
 
-export async function getRandomMathematicsQuestions(limit = 10, { signal } = {}) {
+function createSeededRandom(seed) {
+  let state = 2166136261
+  for (const character of String(seed)) {
+    state ^= character.charCodeAt(0)
+    state = Math.imul(state, 16777619)
+  }
+
+  return () => {
+    state += 0x6D2B79F5
+    let value = state
+    value = Math.imul(value ^ (value >>> 15), value | 1)
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+export async function getRandomMathematicsQuestions(limit = 10, { signal, seed = `${Date.now()}-${Math.random()}` } = {}) {
   const safeLimit = Math.max(1, Math.floor(Number(limit) || 10))
   const { count } = await getQuestions({
     page: 1,
@@ -102,8 +118,9 @@ export async function getRandomMathematicsQuestions(limit = 10, { signal } = {})
   const sampleSize = Math.min(safeLimit, count)
   if (!sampleSize) return []
 
+  const random = createSeededRandom(seed)
   const indexes = new Set()
-  while (indexes.size < sampleSize) indexes.add(Math.floor(Math.random() * count))
+  while (indexes.size < sampleSize) indexes.add(Math.floor(random() * count))
 
   const results = await Promise.all([...indexes].map(async (index) => {
     const result = await getQuestions({

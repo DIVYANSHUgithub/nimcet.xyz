@@ -1,28 +1,45 @@
 import { useEffect, useState } from 'react'
 import { Bookmark, ChevronDown, ChevronUp } from 'lucide-react'
-import { getQuestions } from '../lib/questionsApi'
+import { getRandomMathematicsQuestions } from '../lib/questionsApi'
 import { normalizeQuestion } from '../utils/normalizeQuestion'
 import MathText from './MathText'
 import Badge from './ui/Badge'
 import Toast from './Toast'
+import LoginPrompt from './LoginPrompt'
+import { useAuth } from '../context/useAuth'
+import { useDailyDateKey } from '../hooks/useDailyDateKey'
 
 export default function HighlightQuestion() {
+  const dateKey = useDailyDateKey()
+  const { user } = useAuth()
   const [request, setRequest] = useState({ loading: true, question: null, error: '' })
   const [showAnswer, setShowAnswer] = useState(false)
   const [selectedOption, setSelectedOption] = useState('')
   const [toast, setToast] = useState('')
+  const [loginMessage, setLoginMessage] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
-    getQuestions({ page: 1, pageSize: 1, signal: controller.signal })
-      .then(({ data }) => setRequest({ loading: false, question: data[0] ? normalizeQuestion(data[0]) : null, error: '' }))
+    setRequest({ loading: true, question: null, error: '' })
+    setShowAnswer(false)
+    setSelectedOption('')
+    getRandomMathematicsQuestions(1, { signal: controller.signal, seed: `${dateKey}:daily-challenge` })
+      .then((rows) => setRequest({ loading: false, question: rows[0] ? normalizeQuestion(rows[0]) : null, error: '' }))
       .catch((error) => {
         if (controller.signal.aborted || error.name === 'AbortError') return
         console.error('Homepage question failed to load:', error)
         setRequest({ loading: false, question: null, error: 'A featured question could not be loaded.' })
       })
     return () => controller.abort()
-  }, [])
+  }, [dateKey])
+
+  const handleOptionSelect = (index) => {
+    if (!user) {
+      setLoginMessage('Sign in to choose an answer and practice this question.')
+      return
+    }
+    setSelectedOption(String(index))
+  }
 
   const question = request.question
   return (
@@ -45,7 +62,7 @@ export default function HighlightQuestion() {
                 const isCorrect = showAnswer && index === question.correctOptionIndex
                 return (
                   <label key={`${question.id}-choice-${index}`} className={`flex min-h-11 min-w-0 cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm leading-6 transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand ${isCorrect ? 'border-success-border bg-success-bg' : selected ? 'border-option-selected-border bg-option-selected' : 'border-line hover:bg-canvas-muted'}`}>
-                    <input className="sr-only" type="radio" name={`featured-${question.id}`} checked={selected} onChange={() => setSelectedOption(String(index))} />
+                    <input className="sr-only" type="radio" name={`featured-${question.id}`} checked={selected} onChange={() => handleOptionSelect(index)} />
                     <span className="font-semibold text-ink-muted">{String.fromCharCode(65 + index)}.</span>
                     <span className="min-w-0 break-words text-ink"><MathText text={option} /></span>
                   </label>
@@ -67,6 +84,7 @@ export default function HighlightQuestion() {
           </>
         )}
       </article>
+      <LoginPrompt message={loginMessage} onClose={() => setLoginMessage('')} />
       <Toast message={toast} onDismiss={() => setToast('')} />
     </>
   )

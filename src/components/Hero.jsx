@@ -542,7 +542,7 @@ export default function Hero() {
                 TODAY'S CHALLENGE
               </h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Review a published question with its answer key and explanation.
+                Try a daily Mathematics question from the published question bank.
               </p>
             </div>
 
@@ -550,6 +550,7 @@ export default function Hero() {
               <p className="text-xs font-semibold text-slate-800">
                 <span className="mr-2 text-blue-600">▦</span>
                 {new Date().toLocaleDateString('en-IN', {
+                  timeZone: 'Asia/Kolkata',
                   weekday: 'short',
                   day: 'numeric',
                   month: 'short',

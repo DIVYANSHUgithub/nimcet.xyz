@@ -5,8 +5,10 @@ import Container from './ui/Container'
 import { getRandomMathematicsQuestions } from '../lib/questionsApi'
 import { normalizeQuestion } from '../utils/normalizeQuestion'
 import { formatDisplayDate } from '../utils/formatDate'
+import { useDailyDateKey } from '../hooks/useDailyDateKey'
 
 export default function DailyQuestions() {
+  const dateKey = useDailyDateKey()
   const [expandedId, setExpandedId] = useState(null)
   const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -15,7 +17,10 @@ export default function DailyQuestions() {
 
   useEffect(() => {
     const controller = new AbortController()
-    getRandomMathematicsQuestions(10, { signal: controller.signal })
+    setLoading(true)
+    setLoadError('')
+    setExpandedId(null)
+    getRandomMathematicsQuestions(10, { signal: controller.signal, seed: `${dateKey}:daily-questions` })
       .then((rows) => {
         setQuestions(rows.map((row) => {
           const question = normalizeQuestion(row)
@@ -37,7 +42,7 @@ export default function DailyQuestions() {
       })
 
     return () => controller.abort()
-  }, [requestRevision])
+  }, [dateKey, requestRevision])
 
   const handleToggle = (id) => setExpandedId((previous) => previous === id ? null : id)
 

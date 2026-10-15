@@ -35,7 +35,6 @@ export default function QuestionFilters({
       <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
         <FilterField label="Subject">
           <select className={controlClass} value={subject} onChange={(event) => onSubjectChange(event.target.value)}>
-            <option value="all">All subjects</option>
             {subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </FilterField>

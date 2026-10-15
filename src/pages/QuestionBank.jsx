@@ -20,8 +20,8 @@ export default function QuestionBank() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const { subjects, topics } = useQuestionFacets()
-  const subjectParam = searchParams.get('subject') || 'all'
-  const subject = subjectParam === 'all' || subjects.some((item) => item.id === subjectParam) ? subjectParam : 'all'
+  const subjectParam = searchParams.get('subject')
+  const subject = subjects.some((item) => item.id === subjectParam) ? subjectParam : subjects[0]?.id || 'all'
   const topic = searchParams.get('topic') || ''
   const [questions, setQuestions] = useState([])
   const [total, setTotal] = useState(0)
