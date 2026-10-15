@@ -1,11 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 import SearchBar from './SearchBar'
 import PopularSearches from './PopularSearches'
-import { suggestedSearches } from '../data/topics'
 import HighlightQuestion from './HighlightQuestion'
 import Container from './ui/Container'
 
-export default function Hero() {
+export default function Hero({ topics = [], searchableItems = [] }) {
   const navigate = useNavigate()
   const runSearch = (value) => {
     const term = String(value ?? '').trim()
@@ -26,17 +25,17 @@ export default function Hero() {
             Practice topic-wise questions, understand detailed solutions, and build confidence for NIMCET.
           </p>
           <div className="mt-6 max-w-xl">
-            <SearchBar onSearch={runSearch} placeholder="Search questions, topics, or subjects..." />
+            <SearchBar onSearch={runSearch} placeholder="Search questions, topics, or subjects..." searchableItems={searchableItems} />
           </div>
           <div className="mt-5">
-            <PopularSearches items={suggestedSearches} onSelect={runSearch} />
+            {topics.length > 0 && <PopularSearches items={topics} onSelect={runSearch} />}
           </div>
         </div>
 
         <div className="min-w-0 lg:justify-self-end">
           <div className="mb-4">
             <p className="text-xs font-bold tracking-[0.12em] text-accent">FROM THE QUESTION BANK</p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink-heading">Try a question</h2>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink-heading">TODAY's CHALLENGE</h2>
             <p className="mt-1 text-sm leading-6 text-ink-muted">Review a published question with its answer key and explanation.</p>
           </div>
           <HighlightQuestion />

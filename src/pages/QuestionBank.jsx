@@ -5,7 +5,7 @@ import Footer from '../components/Footer'
 import Toast from '../components/Toast'
 import Breadcrumbs from '../components/questions/Breadcrumbs'
 import QuestionBankSidebar from '../components/questions/QuestionBankSidebar'
-import QuestionBankRightSidebar from '../components/questions/QuestionBankRightSidebar'
+// import QuestionBankRightSidebar from '../components/questions/QuestionBankRightSidebar'
 import QuestionBankHeader from '../components/questions/QuestionBankHeader'
 import QuestionFilters from '../components/questions/QuestionFilters'
 import QuestionList from '../components/questions/QuestionList'
@@ -14,14 +14,14 @@ import Container from '../components/ui/Container'
 import Button from '../components/ui/Button'
 import { getQuestions, QUESTION_PAGE_SIZE } from '../lib/questionsApi'
 import { normalizeQuestion } from '../utils/normalizeQuestion'
-
-const validSubjects = new Set(['all', 'mathematics', 'reasoning'])
+import { useQuestionFacets } from '../hooks/useQuestionFacets'
 
 export default function QuestionBank() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { subjects, topics } = useQuestionFacets()
   const subjectParam = searchParams.get('subject') || 'all'
-  const subject = validSubjects.has(subjectParam) ? subjectParam : 'all'
+  const subject = subjectParam === 'all' || subjects.some((item) => item.id === subjectParam) ? subjectParam : 'all'
   const topic = searchParams.get('topic') || ''
   const [questions, setQuestions] = useState([])
   const [total, setTotal] = useState(0)
@@ -33,7 +33,7 @@ export default function QuestionBank() {
   const [difficulty, setDifficulty] = useState('')
   const [questionType, setQuestionType] = useState('')
   const [year, setYear] = useState('')
-  const [sort, setSort] = useState('newest')
+  const [sort, setSort] = useState('question-number')
   const [page, setPage] = useState(1)
   const [toast, setToast] = useState('')
 
@@ -167,6 +167,7 @@ export default function QuestionBank() {
 
       <main className="mx-auto grid w-full max-w-content flex-1 grid-cols-1 items-start gap-5 px-5 pb-12 pt-4 md:px-8 min-[1100px]:grid-cols-[15rem_minmax(0,1fr)_17rem] min-[1100px]:gap-6">
         <QuestionBankSidebar
+          subjects={subjects}
           selectedSubjectId={subject}
           onSubjectSelect={handleSubjectChange}
           onQuickLink={handleQuickLink}
@@ -176,6 +177,7 @@ export default function QuestionBank() {
         <section className="order-1 min-w-0 min-[1100px]:order-2 min-[1100px]:col-start-2 min-[1100px]:row-start-1" aria-label="Question list">
           <QuestionBankHeader search={search} onSearchChange={handleSearchChange} />
           <QuestionFilters
+            subjects={subjects}
             subject={subject}
             onSubjectChange={handleSubjectChange}
             topic={topic}
@@ -219,7 +221,7 @@ export default function QuestionBank() {
           )}
         </section>
 
-        <QuestionBankRightSidebar onTopicSelect={(value) => patchQuery({ topic: value }, false)} className="order-3 min-[1100px]:order-3 min-[1100px]:col-start-3 min-[1100px]:row-start-1" />
+        {/* <QuestionBankRightSidebar topics={topics.slice(0, 9)} onTopicSelect={(value) => patchQuery({ topic: value }, false)} className="order-3 min-[1100px]:order-3 min-[1100px]:col-start-3 min-[1100px]:row-start-1" /> */}
       </main>
       <Footer />
       <Toast message={toast} onDismiss={() => setToast('')} />

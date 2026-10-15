@@ -1,5 +1,12 @@
 import { Clock3, FileQuestion, Shuffle, Star, TrendingUp } from 'lucide-react'
-import { quickLinks } from '../../data/questionBank'
+
+const quickLinks = [
+  { id: 'pyqs', label: 'Previous Year Questions', icon: 'file' },
+  { id: 'important', label: 'Important Questions', icon: 'star' },
+  { id: 'random', label: 'Random Question', icon: 'shuffle' },
+  { id: 'recent', label: 'Recently Added', icon: 'clock' },
+  { id: 'attempted', label: 'Most Attempted', icon: 'trending' },
+]
 
 const iconMap = {
   file: FileQuestion,

@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { ArrowRight, Search } from 'lucide-react'
-import { searchableItems } from '../data/topics'
 
-export default function SearchBar({ onSearch, placeholder }) {
+export default function SearchBar({ onSearch, placeholder, searchableItems = [] }) {
   const [query, setQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)

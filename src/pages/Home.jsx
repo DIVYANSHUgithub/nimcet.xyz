@@ -7,14 +7,21 @@ import DailyQuestions from '../components/DailyQuestions'
 import PracticeCTA from '../components/PracticeCTA'
 import Footer from '../components/Footer'
 import Container from '../components/ui/Container'
-import { subjects } from '../data/subjects'
+import { useQuestionFacets } from '../hooks/useQuestionFacets'
 
 export default function Home() {
+  const { subjects, topics } = useQuestionFacets()
+  const featuredTopics = topics.slice(0, 9)
+  const searchableItems = [
+    ...topics.map((label) => ({ type: 'topic', label })),
+    ...subjects.map(({ name }) => ({ type: 'subject', label: name })),
+  ]
+
   return (
     <div className="flex min-h-svh flex-col">
       <Navbar />
       <main className="flex-1">
-        <Hero />
+        <Hero topics={featuredTopics} searchableItems={searchableItems} />
         <section className="py-14 sm:py-16">
           <Container>
             <SectionHeader title="Explore by Subject" subtitle="Browse published questions by subject." />
@@ -23,7 +30,7 @@ export default function Home() {
             </div>
           </Container>
         </section>
-        <PopularTopics />
+        <PopularTopics topics={featuredTopics} />
         <DailyQuestions />
         <PracticeCTA />
       </main>

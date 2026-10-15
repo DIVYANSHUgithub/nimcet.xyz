@@ -12,6 +12,7 @@ function FilterField({ label, children, className = '' }) {
 }
 
 export default function QuestionFilters({
+  subjects = [],
   subject,
   onSubjectChange,
   topic,
@@ -35,8 +36,7 @@ export default function QuestionFilters({
         <FilterField label="Subject">
           <select className={controlClass} value={subject} onChange={(event) => onSubjectChange(event.target.value)}>
             <option value="all">All subjects</option>
-            <option value="mathematics">Mathematics</option>
-            <option value="reasoning">Analytical &amp; Logical Reasoning</option>
+            {subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </FilterField>
         <FilterField label="Topic">

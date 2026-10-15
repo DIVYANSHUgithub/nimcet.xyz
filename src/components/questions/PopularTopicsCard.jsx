@@ -1,12 +1,10 @@
-import { featuredQuestionTopics } from '../../data/topics'
-
-export default function PopularTopicsCard({ onTopicSelect }) {
+export default function PopularTopicsCard({ topics = [], onTopicSelect }) {
   return (
     <section className="rounded-xl border border-line bg-surface p-4">
       <h2 className="mb-1 text-sm font-semibold text-ink-heading">Browse topics</h2>
       <p className="mb-3 text-xs text-ink-muted">Topic names verified in the published question set.</p>
       <ul className="space-y-1">
-        {featuredQuestionTopics.map((topic) => (
+        {topics.map((topic) => (
           <li key={topic}>
             <button
               type="button"
