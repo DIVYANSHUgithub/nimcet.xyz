@@ -4,9 +4,9 @@ import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import Breadcrumbs from '../components/questions/Breadcrumbs'
 import Container from '../components/ui/Container'
-import MathText from '../components/MathText'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import { QuestionMedia, QuestionOptionContent } from '../components/ui/QuestionMedia'
 import { getQuestionById } from '../lib/questionsApi'
 import { normalizeQuestion } from '../utils/normalizeQuestion'
 
@@ -31,12 +31,10 @@ export default function QuestionDetail() {
   const loading = !isCurrentRequest || request.loading
   const error = isCurrentRequest ? request.error : ''
   const question = isCurrentRequest ? request.question : null
-
   const retry = () => {
     setRequest((current) => ({ ...current, loading: true, error: '' }))
     setRetryRevision((revision) => revision + 1)
   }
-
   const breadcrumbItems = [
     { label: 'Home', href: '/' },
     { label: 'Question Bank', href: '/questions' },
@@ -46,9 +44,7 @@ export default function QuestionDetail() {
   return (
     <div className="flex min-h-svh flex-col bg-canvas">
       <Navbar />
-      <Container className="pt-4">
-        <Breadcrumbs items={breadcrumbItems} />
-      </Container>
+      <Container className="pt-4"><Breadcrumbs items={breadcrumbItems} /></Container>
       <main className="mx-auto w-full max-w-3xl flex-1 px-5 pb-12 pt-4 md:px-8">
         {loading ? (
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-muted" role="status">Loading question…</div>
@@ -75,23 +71,21 @@ export default function QuestionDetail() {
               </div>
               <Badge>{question.difficulty || 'Difficulty not provided'}</Badge>
             </div>
-
-            <div className="mb-5 break-words text-base leading-7 text-ink-heading"><MathText text={question.question} /></div>
-
+            <div className="mb-5 break-words text-base leading-7 text-ink-heading">
+              <QuestionMedia text={question.question} imageUrl={question.questionImageUrl} />
+            </div>
             <ol className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="Answer options">
               {question.options.map((option, index) => (
                 <li key={`${question.id}-option-${index}`} className={`min-w-0 rounded-lg border px-3 py-3 text-sm leading-6 ${question.correctOptionIndex === index ? 'border-success-border bg-success-bg text-ink-heading' : 'border-line bg-canvas-muted/40 text-ink'}`}>
-                  <span className="mr-2 font-semibold">{String.fromCharCode(65 + index)}.</span><MathText text={option} />
+                  <span className="mr-2 font-semibold">{String.fromCharCode(65 + index)}.</span><QuestionOptionContent option={option} />
                 </li>
               ))}
             </ol>
-
             <section className="rounded-lg border border-line bg-canvas-muted/50 p-4" aria-labelledby="answer-heading">
               <h2 id="answer-heading" className="mb-2 text-sm font-semibold text-ink-heading">Answer and explanation</h2>
-              <p className="mb-2 text-sm text-ink-heading"><strong>Answer:</strong>{' '}<MathText text={question.correctAnswer || 'Not provided'} /></p>
-              <div className="text-sm leading-6 text-ink"><MathText text={question.explanation || 'No explanation is available for this question.'} /></div>
+              <p className="mb-2 text-sm text-ink-heading"><strong>Answer:</strong>{' '}<QuestionOptionContent option={question.correctAnswer} /></p>
+              <div className="text-sm leading-6 text-ink"><QuestionMedia text={question.explanation} /></div>
             </section>
-
             <dl className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-ink-muted">
               {question.exam && <div><dt className="inline font-medium">Exam: </dt><dd className="inline">{question.exam}</dd></div>}
               {question.examYear && <div><dt className="inline font-medium">Year: </dt><dd className="inline">{question.examYear}</dd></div>}
