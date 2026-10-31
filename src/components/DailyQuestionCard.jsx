@@ -1,10 +1,10 @@
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import Badge from './ui/Badge'
 import { difficultyTone } from '../utils/difficultyTone'
-import MathText from './MathText'
+import { QuestionMedia, QuestionOptionContent } from './ui/QuestionMedia'
 
 export default function DailyQuestionCard({ question, index, total, isExpanded, onToggle }) {
-  const { id, difficulty, question: prompt, options = [], answer, explanation } = question
+  const { id, difficulty, question: prompt, questionImageUrl, options = [], answer, explanation } = question
   const answerId = `daily-answer-${id}`
 
   return (
@@ -15,9 +15,9 @@ export default function DailyQuestionCard({ question, index, total, isExpanded, 
             <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Question {index + 1} of {total}</span>
             <Badge tone={difficultyTone(difficulty)}>{difficulty || 'Difficulty not provided'}</Badge>
           </div>
-          <div className="mb-3 break-words text-sm font-medium leading-6 text-ink-heading"><MathText text={prompt} /></div>
+          <div className="mb-3 break-words text-sm font-medium leading-6 text-ink-heading"><QuestionMedia text={prompt} imageUrl={questionImageUrl} /></div>
           <ol className="grid grid-cols-1 gap-2 min-[480px]:grid-cols-2" aria-label="Answer options">
-            {options.map((option, optionIndex) => <li key={`${id}-option-${optionIndex}`} className="min-w-0 rounded-md border border-line bg-canvas-muted/50 px-3 py-2 text-sm leading-6 text-ink"><span className="mr-2 font-semibold text-ink-muted">{String.fromCharCode(65 + optionIndex)}.</span><MathText text={option} /></li>)}
+            {options.map((option, optionIndex) => <li key={`${id}-option-${optionIndex}`} className="min-w-0 rounded-md border border-line bg-canvas-muted/50 px-3 py-2 text-sm leading-6 text-ink"><span className="mr-2 font-semibold text-ink-muted">{String.fromCharCode(65 + optionIndex)}.</span><QuestionOptionContent option={option} /></li>)}
           </ol>
         </div>
         <button type="button" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 self-start rounded-md border border-line-strong bg-surface px-3 text-sm font-medium text-ink-heading transition hover:bg-canvas-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:self-center" onClick={onToggle} aria-expanded={isExpanded} aria-controls={answerId}>
@@ -27,8 +27,8 @@ export default function DailyQuestionCard({ question, index, total, isExpanded, 
       </div>
       {isExpanded && (
         <div id={answerId} className="space-y-2 border-t border-line bg-canvas-muted/50 px-4 py-4 text-sm leading-6 text-ink sm:px-5" role="region" aria-label="Answer and explanation">
-          <p className="font-medium text-ink-heading"><strong>Answer:</strong> <MathText text={answer} /></p>
-          <p><MathText text={explanation} /></p>
+          <p className="font-medium text-ink-heading"><strong>Answer:</strong> <QuestionOptionContent option={answer} /></p>
+          <QuestionMedia text={explanation} />
         </div>
       )}
     </article>
