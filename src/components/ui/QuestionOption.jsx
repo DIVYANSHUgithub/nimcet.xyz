@@ -1,5 +1,5 @@
 import { cn } from '../../lib/cn'
-import MathText from '../MathText'
+import { QuestionOptionContent } from './QuestionMedia'
 
 const letterClass =
   'inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-md border border-line bg-canvas-muted text-xs font-bold text-ink-heading'
@@ -16,7 +16,7 @@ export default function QuestionOption({
   spanFull = false,
   ...props
 }) {
-  const body = children ?? <MathText>{content}</MathText>
+  const body = children ?? <QuestionOptionContent option={content} />
 
   return (
     <Comp
