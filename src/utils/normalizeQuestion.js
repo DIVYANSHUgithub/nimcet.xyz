@@ -1,30 +1,50 @@
+function isImageUrl(value) {
+  return typeof value === 'string' && /^(https?:)?\/\//i.test(value.trim()) &&
+    /\.(png|jpe?g|gif|webp|svg|avif)(?:[?#]|$)/i.test(value.trim())
+}
+
+function normalizeOption(option) {
+  if (typeof option === 'string') {
+    const value = option.trim()
+    // Backward compatibility: a legacy URL saved as an option is an image, not option text.
+    return isImageUrl(value)
+      ? { text: '', imageUrl: value, isImage: true }
+      : { text: option, imageUrl: '', isImage: false }
+  }
+  if (option && typeof option === 'object') {
+    const text = String(option.text ?? option.label ?? '')
+    const imageUrl = String(option.image_url ?? option.imageUrl ?? option.url ?? '')
+    return { text, imageUrl, isImage: Boolean(imageUrl) }
+  }
+  return { text: String(option ?? ''), imageUrl: '', isImage: false }
+}
+
 function parseOptions(value) {
-  if (Array.isArray(value)) return value.map((option) => String(option ?? ''))
+  let parsed = value
   if (typeof value === 'string') {
     try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed.map((option) => String(option ?? '')) : []
+      parsed = JSON.parse(value)
     } catch {
       return []
     }
   }
-  return []
+  return Array.isArray(parsed) ? parsed.map(normalizeOption) : []
 }
 
 export function validateQuestion(question = {}) {
   const issues = []
   if (!String(question.id ?? '').trim()) issues.push('missing-id')
-  if (!String(question.question ?? '').trim()) issues.push('missing-question')
+  if (!String(question.question ?? '').trim() && !question.questionImageUrl) issues.push('missing-question')
   const options = Array.isArray(question.options) ? question.options : []
-  if (options.length < 2 || options.some((option) => !String(option ?? '').trim())) issues.push('missing-options')
+  if (options.length < 2 || options.some((option) => !option.text.trim() && !option.imageUrl)) issues.push('missing-options')
   if (
     !Number.isInteger(question.correctOptionIndex) ||
     question.correctOptionIndex < 0 ||
-    question.correctOptionIndex >= question.options.length
+    question.correctOptionIndex >= options.length
   ) {
     issues.push('invalid-correct-option')
   }
-  if (!question.explanation.trim()) issues.push('missing-explanation')
+  if (!String(question.explanation ?? '').trim()) issues.push('missing-explanation')
   return issues
 }
 
@@ -44,9 +64,10 @@ export function normalizeQuestion(row = {}) {
     difficulty: row.difficulty == null ? null : String(row.difficulty),
     type: options.length ? 'MCQ' : 'Unspecified',
     question: String(row.question ?? ''),
+    questionImageUrl: String(row.question_image_url ?? row.questionImageUrl ?? ''),
     options,
     correctOptionIndex,
-    correctAnswer: Number.isInteger(correctOptionIndex) ? options[correctOptionIndex] ?? '' : '',
+    correctAnswer: Number.isInteger(correctOptionIndex) ? options[correctOptionIndex] ?? { text: '', imageUrl: '', isImage: false } : { text: '', imageUrl: '', isImage: false },
     explanation: String(row.explanation ?? ''),
     exam: String(row.exam ?? ''),
     examYear: row.exam_year == null ? null : Number(row.exam_year),
