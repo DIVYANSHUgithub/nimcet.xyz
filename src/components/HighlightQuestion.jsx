@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { Bookmark, ChevronDown, ChevronUp } from 'lucide-react'
 import { getRandomMathematicsQuestions } from '../lib/questionsApi'
 import { normalizeQuestion } from '../utils/normalizeQuestion'
-import MathText from './MathText'
 import Badge from './ui/Badge'
 import Toast from './Toast'
 import LoginPrompt from './LoginPrompt'
 import { useAuth } from '../context/useAuth'
 import { useDailyDateKey } from '../hooks/useDailyDateKey'
+import { QuestionMedia, QuestionOptionContent } from './ui/QuestionMedia'
 
 export default function HighlightQuestion() {
   const dateKey = useDailyDateKey()
@@ -54,7 +54,7 @@ export default function HighlightQuestion() {
               </div>
               <Badge>{question.difficulty || 'Difficulty not provided'}</Badge>
             </div>
-            <div className="mb-4 break-words text-base font-medium leading-7 text-ink-heading"><MathText text={question.question} /></div>
+            <div className="mb-4 break-words text-base font-medium leading-7 text-ink-heading"><QuestionMedia text={question.question} imageUrl={question.questionImageUrl} /></div>
             <fieldset className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <legend className="mb-2 text-xs font-medium text-ink-muted">Choose an answer</legend>
               {question.options.map((option, index) => {
@@ -64,14 +64,14 @@ export default function HighlightQuestion() {
                   <label key={`${question.id}-choice-${index}`} className={`flex min-h-11 min-w-0 cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm leading-6 transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand ${isCorrect ? 'border-success-border bg-success-bg' : selected ? 'border-option-selected-border bg-option-selected' : 'border-line hover:bg-canvas-muted'}`}>
                     <input className="sr-only" type="radio" name={`featured-${question.id}`} checked={selected} onChange={() => handleOptionSelect(index)} />
                     <span className="font-semibold text-ink-muted">{String.fromCharCode(65 + index)}.</span>
-                    <span className="min-w-0 break-words text-ink"><MathText text={option} /></span>
+                    <span className="min-w-0 break-words text-ink"><QuestionOptionContent option={option} /></span>
                   </label>
                 )
               })}
             </fieldset>
             {showAnswer && <div className="mt-4 rounded-lg border border-success-border bg-success-bg p-3 text-sm leading-6 text-ink" role="region" aria-label="Answer and explanation">
-              <p className="mb-1 font-semibold text-ink-heading">Answer: <MathText text={question.correctAnswer || 'Not provided'} /></p>
-              <MathText text={question.explanation || 'No explanation is available.'} />
+              <p className="mb-1 font-semibold text-ink-heading">Answer: <QuestionOptionContent option={question.correctAnswer} /></p>
+              <QuestionMedia text={question.explanation} />
             </div>}
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" onClick={() => setShowAnswer((current) => !current)} aria-expanded={showAnswer}>
