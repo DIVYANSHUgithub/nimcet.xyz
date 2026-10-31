@@ -37,6 +37,26 @@ test('parses JSON options and reports missing or invalid required content', () =
   assert.ok(validateQuestion(question).includes('missing-explanation'))
 })
 
+test('normalizes legacy image URLs and structured image options without changing text options', () => {
+  const signedUrl = 'https://example.supabase.co/storage/v1/object/sign/questionImage/figure.png?token=test'
+  const structuredUrl = 'https://example.supabase.co/storage/v1/object/public/questionImage/choice.jpg'
+  const question = normalizeQuestion({
+    id: 'image-question',
+    question: 'Select the matching figure',
+    question_image_url: signedUrl,
+    options: JSON.stringify(['Plain text option', signedUrl, { text: 'Caption', image_url: structuredUrl }]),
+    correct_option: 1,
+    explanation: 'Compare the figures.',
+  })
+
+  assert.equal(question.questionImageUrl, signedUrl)
+  assert.equal(question.options[0], 'Plain text option')
+  assert.deepEqual(question.options[1], { text: '', imageUrl: signedUrl, isImage: true })
+  assert.deepEqual(question.options[2], { text: 'Caption', imageUrl: structuredUrl, isImage: true })
+  assert.deepEqual(question.correctAnswer, question.options[1])
+  assert.deepEqual(question.validationIssues, [])
+})
+
 test('parses inline and display math with dollar and bracket delimiters', () => {
   assert.deepEqual(parseMathParts('Area $x^2$ then \\(\\frac{1}{2}\\) and $$\\sum_{i=1}^n i$$ and \\[\\sqrt{4}\\]'), [
     { type: 'text', value: 'Area ' },
