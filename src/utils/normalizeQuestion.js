@@ -1,22 +1,35 @@
 function isImageUrl(value) {
-  return typeof value === 'string' && /^(https?:)?\/\//i.test(value.trim()) &&
+  return typeof value === 'string' &&
+    /^(https?:)?\/\//i.test(value.trim()) &&
     /\.(png|jpe?g|gif|webp|svg|avif)(?:[?#]|$)/i.test(value.trim())
 }
 
 function normalizeOption(option) {
   if (typeof option === 'string') {
     const value = option.trim()
-    // Backward compatibility: a legacy URL saved as an option is an image, not option text.
+    // Legacy image URLs may be stored directly in options. Keep ordinary text strings
+    // unchanged so existing components and records remain backward-compatible.
     return isImageUrl(value)
       ? { text: '', imageUrl: value, isImage: true }
-      : { text: option, imageUrl: '', isImage: false }
+      : option
   }
+
   if (option && typeof option === 'object') {
     const text = String(option.text ?? option.label ?? '')
     const imageUrl = String(option.image_url ?? option.imageUrl ?? option.url ?? '')
     return { text, imageUrl, isImage: Boolean(imageUrl) }
   }
-  return { text: String(option ?? ''), imageUrl: '', isImage: false }
+
+  return String(option ?? '')
+}
+
+function hasOptionContent(option) {
+  if (typeof option === 'string') return Boolean(option.trim())
+  if (!option || typeof option !== 'object') return false
+  return Boolean(
+    String(option.text ?? '').trim() ||
+    String(option.imageUrl ?? option.image_url ?? option.url ?? '').trim()
+  )
 }
 
 function parseOptions(value) {
@@ -36,7 +49,7 @@ export function validateQuestion(question = {}) {
   if (!String(question.id ?? '').trim()) issues.push('missing-id')
   if (!String(question.question ?? '').trim() && !question.questionImageUrl) issues.push('missing-question')
   const options = Array.isArray(question.options) ? question.options : []
-  if (options.length < 2 || options.some((option) => !option.text.trim() && !option.imageUrl)) issues.push('missing-options')
+  if (options.length < 2 || options.some((option) => !hasOptionContent(option))) issues.push('missing-options')
   if (
     !Number.isInteger(question.correctOptionIndex) ||
     question.correctOptionIndex < 0 ||
@@ -67,7 +80,7 @@ export function normalizeQuestion(row = {}) {
     questionImageUrl: String(row.question_image_url ?? row.questionImageUrl ?? ''),
     options,
     correctOptionIndex,
-    correctAnswer: Number.isInteger(correctOptionIndex) ? options[correctOptionIndex] ?? { text: '', imageUrl: '', isImage: false } : { text: '', imageUrl: '', isImage: false },
+    correctAnswer: Number.isInteger(correctOptionIndex) ? options[correctOptionIndex] ?? '' : '',
     explanation: String(row.explanation ?? ''),
     exam: String(row.exam ?? ''),
     examYear: row.exam_year == null ? null : Number(row.exam_year),
