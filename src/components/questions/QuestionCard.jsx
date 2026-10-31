@@ -1,10 +1,10 @@
 import { ArrowRight, Bookmark } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import MathText from '../MathText'
 import Badge from '../ui/Badge'
+import { QuestionMedia, QuestionOptionContent } from '../ui/QuestionMedia'
 
 export default function QuestionCard({ question, index, onBookmark }) {
-  const { id, subject, topic, difficulty, question: prompt, options = [], type, exam, examYear, questionNumber } = question
+  const { id, subject, topic, difficulty, question: prompt, questionImageUrl, options = [], type, exam, examYear, questionNumber } = question
 
   return (
     <article className="rounded-xl border border-line bg-surface p-4 shadow-sm sm:p-5">
@@ -16,22 +16,19 @@ export default function QuestionCard({ question, index, onBookmark }) {
         </div>
         <Badge>{difficulty || 'Difficulty not provided'}</Badge>
       </div>
-
       <div className="mb-4 break-words text-[15px] font-medium leading-7 text-ink-heading">
-        <MathText text={prompt} />
+        <QuestionMedia text={prompt} imageUrl={questionImageUrl} />
       </div>
-
       {options.length > 0 && (
         <ol className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="Answer options">
           {options.map((option, optionIndex) => (
             <li key={`${id}-option-${optionIndex}`} className="min-w-0 rounded-lg border border-line bg-canvas-muted/50 px-3 py-2.5 text-sm leading-6 text-ink">
               <span className="mr-2 font-semibold text-ink-muted">{String.fromCharCode(65 + optionIndex)}.</span>
-              <MathText text={option} />
+              <QuestionOptionContent option={option} />
             </li>
           ))}
         </ol>
       )}
-
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-muted">
           {type && <span>{type}</span>}
