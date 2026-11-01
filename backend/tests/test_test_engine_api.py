@@ -116,7 +116,10 @@ class _TestEngine:
 
 def _client(repository):
     app = create_app(
-        settings=Settings(_env_file=None, cors_allowed_origins="http://localhost:5173"),
+        settings=Settings(_env_file=None,
+                           cors_allowed_origins="http://localhost:5173",
+                           test_engine_enabled=True
+                           ),
         database=_Database(),
         token_verifier=_Verifier(),
         role_resolver=StudentOnlyRoleResolver(),

@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -28,6 +29,7 @@ class Settings(BaseSettings):
 
     database_url: SecretStr | None = None
     trusted_role_lookup_enabled: bool = False
+    test_engine_enabled: bool = False
     cors_allowed_origins: str = "http://localhost:5173"
 
     @property

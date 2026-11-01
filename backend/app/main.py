@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.routes.health import router as health_router
-from app.api.v1.router import api_router
+from app.api.v1.router import create_api_router
 from app.core.config import Settings, get_settings
 from app.core.errors import (
     http_exception_handler,
@@ -110,7 +110,10 @@ def create_app(
         return await unexpected_exception_handler(request, exc)
 
     app.include_router(health_router)
-    app.include_router(api_router, prefix="/api/v1")
+    app.include_router(
+        create_api_router(settings.test_engine_enabled),
+        prefix="/api/v1",
+    )
     return app
 
 
