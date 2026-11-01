@@ -1,0 +1,1 @@
+"""NIMCET.XYZ FastAPI application."""

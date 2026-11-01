@@ -1,6 +1,23 @@
 import { getSupabaseConfigError, supabase } from './supabase'
+import { ApiRequestError, backendGet } from './backendApi'
 
 export const QUESTION_PAGE_SIZE = 10
+const questionApiMode = String(import.meta.env?.VITE_QUESTION_API_MODE ?? 'supabase').trim().toLowerCase()
+const useBackendQuestionApi = questionApiMode === 'backend'
+
+function backendFilters(filters = {}) {
+  return {
+    exam: filters.exam,
+    section: filters.section,
+    subject: filters.subject,
+    topic: filters.topic,
+    difficulty: filters.difficulty,
+    year: filters.year,
+    type: filters.questionType,
+    search: filters.search,
+    sort: filters.sort === 'newest' ? 'recent' : filters.sort,
+  }
+}
 
 function safeSearchTerm(value) {
   return String(value ?? '')
@@ -63,6 +80,25 @@ export async function getQuestions({
 } = {}) {
   const safePageSize = Math.min(100, Math.max(1, Math.floor(Number(pageSize) || QUESTION_PAGE_SIZE)))
   let safePage = Math.max(1, Math.floor(Number(page) || 1))
+  if (useBackendQuestionApi) {
+    const result = await backendGet('questions', {
+      params: {
+        page: safePage,
+        page_size: safePageSize,
+        ...backendFilters(filters),
+      },
+      signal,
+    })
+    if (!Array.isArray(result?.items) || !Number.isInteger(result?.total) || result.total < 0) {
+      throw new ApiRequestError('The question service returned an invalid page.', { code: 'invalid_response' })
+    }
+    return {
+      data: result.items,
+      count: result.total,
+      page: result.page ?? safePage,
+      pageSize: result.page_size ?? safePageSize,
+    }
+  }
   let result = await fetchQuestionPage({ page: safePage, pageSize: safePageSize, filters, signal })
 
   const lastPage = Math.max(1, Math.ceil(result.count / safePageSize))
@@ -76,6 +112,14 @@ export async function getQuestions({
 
 export async function getQuestionById(id, { signal } = {}) {
   if (id == null || String(id).trim() === '') return null
+  if (useBackendQuestionApi) {
+    try {
+      return await backendGet(`questions/${encodeURIComponent(String(id))}`, { signal })
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 404) return null
+      throw error
+    }
+  }
   if (!supabase) throw getSupabaseConfigError()
 
   let query = supabase
@@ -135,6 +179,16 @@ export async function getRandomMathematicsQuestions(limit = 10, { signal, seed =
 }
 
 export async function getQuestionFacets({ signal } = {}) {
+  if (useBackendQuestionApi) {
+    const facets = await backendGet('questions/facets', { signal })
+    if (!Array.isArray(facets?.subjects) || !Array.isArray(facets?.topics)) {
+      throw new ApiRequestError('The question service returned invalid filters.', { code: 'invalid_response' })
+    }
+    return {
+      subjects: facets.subjects,
+      topics: facets.topics,
+    }
+  }
   if (!supabase) throw getSupabaseConfigError()
 
   const subjects = new Set()

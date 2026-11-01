@@ -4,7 +4,6 @@ import katex from 'katex'
 import { normalizeQuestion, validateQuestion } from '../src/utils/normalizeQuestion.js'
 import { buildPageNumbers } from '../src/utils/filterQuestions.js'
 import { parseMathParts } from '../src/utils/parseMathParts.js'
-import { dailyQuestions } from '../src/data/questions.js'
 import { validateLogin, validateSignup } from '../src/utils/validateAuth.js'
 
 test('normalizes a published database row and uses its zero-based correct option', () => {
@@ -83,14 +82,18 @@ test('keeps pagination within valid boundaries', () => {
   assert.deepEqual(buildPageNumbers(4, 0), [1])
 })
 
-test('marks the conflicting daily question for review and checks displayed answers on the others', () => {
-  const unresolved = dailyQuestions.find((question) => question.id === 1)
-  assert.equal(unresolved.verificationStatus, 'needs-review')
-  for (const question of dailyQuestions.filter((item) => item.verificationStatus !== 'needs-review')) {
-    const match = question.answer.match(/^([A-D])\.\s*(.*)$/)
-    assert.ok(match, `Question ${question.id} should use a lettered answer`)
-    const option = question.options[match[1].charCodeAt(0) - 65]
-    assert.equal(option, match[2], `Question ${question.id} answer must match its option`)
+test('maps zero-based correct option indexes onto the corresponding option text', () => {
+  const options = ['Choice A', 'Choice B', 'Choice C', 'Choice D']
+  for (let correct_option = 0; correct_option < options.length; correct_option += 1) {
+    const normalized = normalizeQuestion({
+      id: `synthetic-${correct_option}`,
+      question: 'Synthetic fixture question',
+      options,
+      correct_option,
+      explanation: 'Synthetic fixture explanation',
+    })
+    assert.equal(normalized.correctAnswer, options[correct_option])
+    assert.deepEqual(normalized.validationIssues, [])
   }
 })
 

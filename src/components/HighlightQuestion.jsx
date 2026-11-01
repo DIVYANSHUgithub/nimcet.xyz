@@ -12,23 +12,19 @@ import { QuestionMedia, QuestionOptionContent } from './ui/QuestionMedia'
 export default function HighlightQuestion() {
   const dateKey = useDailyDateKey()
   const { user } = useAuth()
-  const [request, setRequest] = useState({ loading: true, question: null, error: '' })
-  const [showAnswer, setShowAnswer] = useState(false)
-  const [selectedOption, setSelectedOption] = useState('')
+  const [request, setRequest] = useState({ key: null, question: null, error: '' })
+  const [interaction, setInteraction] = useState({ key: null, showAnswer: false, selectedOption: '' })
   const [toast, setToast] = useState('')
   const [loginMessage, setLoginMessage] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
-    setRequest({ loading: true, question: null, error: '' })
-    setShowAnswer(false)
-    setSelectedOption('')
     getRandomMathematicsQuestions(1, { signal: controller.signal, seed: `${dateKey}:daily-challenge` })
-      .then((rows) => setRequest({ loading: false, question: rows[0] ? normalizeQuestion(rows[0]) : null, error: '' }))
+      .then((rows) => setRequest({ key: dateKey, question: rows[0] ? normalizeQuestion(rows[0]) : null, error: '' }))
       .catch((error) => {
         if (controller.signal.aborted || error.name === 'AbortError') return
         console.error('Homepage question failed to load:', error)
-        setRequest({ loading: false, question: null, error: 'A featured question could not be loaded.' })
+        setRequest({ key: dateKey, question: null, error: 'A featured question could not be loaded.' })
       })
     return () => controller.abort()
   }, [dateKey])
@@ -38,14 +34,21 @@ export default function HighlightQuestion() {
       setLoginMessage('Sign in to choose an answer and practice this question.')
       return
     }
-    setSelectedOption(String(index))
+    setInteraction((current) => ({
+      key: dateKey,
+      showAnswer: current.key === dateKey && current.showAnswer,
+      selectedOption: String(index),
+    }))
   }
 
-  const question = request.question
+  const requestCurrent = request.key === dateKey
+  const question = requestCurrent ? request.question : null
+  const showAnswer = interaction.key === dateKey && interaction.showAnswer
+  const selectedOption = interaction.key === dateKey ? interaction.selectedOption : ''
   return (
     <>
       <article className="rounded-xl border border-line bg-surface p-5 shadow-card sm:p-6">
-        {request.loading ? <p className="text-sm text-ink-muted" role="status">Loading a published question…</p> : request.error ? <p className="text-sm text-danger" role="alert">{request.error}</p> : !question ? <p className="text-sm text-ink-muted">No published questions are available yet.</p> : (
+        {!requestCurrent ? <p className="text-sm text-ink-muted" role="status">Loading a published question…</p> : request.error ? <p className="text-sm text-danger" role="alert">{request.error}</p> : !question ? <p className="text-sm text-ink-muted">No published questions are available yet.</p> : (
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
@@ -74,7 +77,7 @@ export default function HighlightQuestion() {
               <QuestionMedia text={question.explanation} />
             </div>}
             <div className="mt-4 flex flex-wrap gap-2">
-              <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" onClick={() => setShowAnswer((current) => !current)} aria-expanded={showAnswer}>
+              <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" onClick={() => setInteraction((current) => ({ key: dateKey, showAnswer: !(current.key === dateKey && current.showAnswer), selectedOption: current.key === dateKey ? current.selectedOption : '' }))} aria-expanded={showAnswer}>
                 {showAnswer ? 'Hide answer' : 'View answer'} {showAnswer ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </button>
               <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-line-strong px-4 text-sm font-medium text-ink-heading hover:bg-canvas-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" onClick={() => setToast('Bookmarks are not available yet. This question was not saved.')}>

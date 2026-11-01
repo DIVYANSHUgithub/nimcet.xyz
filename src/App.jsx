@@ -8,6 +8,8 @@ const Signup = lazy(() => import('./pages/Signup'))
 const QuestionBank = lazy(() => import('./pages/QuestionBank'))
 const QuestionDetail = lazy(() => import('./pages/QuestionDetail'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+const TestCatalog = lazy(() => import('./pages/TestCatalog'))
+const TestAttempt = lazy(() => import('./pages/TestAttempt'))
 
 function NotFound() {
   return (
@@ -30,6 +32,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/questions" element={<QuestionBank />} />
             <Route path="/questions/:questionId" element={<QuestionDetail />} />
+            <Route path="/tests" element={<TestCatalog />} />
+            <Route path="/attempts/:attemptId" element={<TestAttempt />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/reset-password" element={<ResetPassword />} />

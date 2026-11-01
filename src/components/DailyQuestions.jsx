@@ -9,17 +9,16 @@ import { useDailyDateKey } from '../hooks/useDailyDateKey'
 
 export default function DailyQuestions() {
   const dateKey = useDailyDateKey()
-  const [expandedId, setExpandedId] = useState(null)
+  const [expandedQuestion, setExpandedQuestion] = useState({ key: null, id: null })
   const [questions, setQuestions] = useState([])
-  const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [requestRevision, setRequestRevision] = useState(0)
+  const requestKey = `${dateKey}:${requestRevision}`
+  const [loadedRequestKey, setLoadedRequestKey] = useState('')
+  const loading = loadedRequestKey !== requestKey
 
   useEffect(() => {
     const controller = new AbortController()
-    setLoading(true)
-    setLoadError('')
-    setExpandedId(null)
     getRandomMathematicsQuestions(10, { signal: controller.signal, seed: `${dateKey}:daily-questions` })
       .then((rows) => {
         setQuestions(rows.map((row) => {
@@ -31,20 +30,23 @@ export default function DailyQuestions() {
           }
         }))
         setLoadError('')
+        setLoadedRequestKey(requestKey)
       })
       .catch((error) => {
         if (error.name === 'AbortError' || controller.signal.aborted) return
         console.error('Questions of the day loading failed:', error)
         setLoadError('Unable to load mathematics questions. Please try again.')
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
+        setLoadedRequestKey(requestKey)
       })
 
     return () => controller.abort()
-  }, [dateKey, requestRevision])
+  }, [dateKey, requestKey])
 
-  const handleToggle = (id) => setExpandedId((previous) => previous === id ? null : id)
+  const handleToggle = (id) => setExpandedQuestion((previous) => (
+    previous.key === requestKey && previous.id === id
+      ? { key: requestKey, id: null }
+      : { key: requestKey, id }
+  ))
 
   return (
     <section className="bg-canvas-muted py-14 sm:py-16">
@@ -60,7 +62,7 @@ export default function DailyQuestions() {
         ) : loadError ? (
           <div className="rounded-lg border border-danger-border bg-danger-bg p-5" role="alert">
             <p className="text-sm text-danger">{loadError}</p>
-            <button type="button" className="mt-3 text-sm font-semibold text-ink-heading underline underline-offset-2" onClick={() => { setLoading(true); setRequestRevision((revision) => revision + 1) }}>Try again</button>
+            <button type="button" className="mt-3 text-sm font-semibold text-ink-heading underline underline-offset-2" onClick={() => setRequestRevision((revision) => revision + 1)}>Try again</button>
           </div>
         ) : questions.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-5 text-sm text-ink-muted">No published mathematics questions are available yet.</p>
@@ -72,7 +74,7 @@ export default function DailyQuestions() {
                 question={question}
                 index={index}
                 total={questions.length}
-                isExpanded={expandedId === question.id}
+                isExpanded={expandedQuestion.key === requestKey && expandedQuestion.id === question.id}
                 onToggle={() => handleToggle(question.id)}
               />
             ))}

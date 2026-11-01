@@ -9,6 +9,7 @@ import { useAuth } from '../context/useAuth'
 
 const navLinks = [
   { label: 'Questions', to: '/questions' },
+  { label: 'Tests', to: '/tests' },
 ]
 
 export default function Navbar() {
@@ -21,6 +22,7 @@ export default function Navbar() {
   const isSignupPage = pathname === '/signup'
   const isQuestionsPage =
     pathname === '/questions' || pathname.startsWith('/questions/')
+  const isTestsPage = pathname === '/tests' || pathname.startsWith('/attempts/')
 
   const linkClass = (active) =>
     cn(
@@ -60,9 +62,9 @@ export default function Navbar() {
               <Link
                 key={link.label}
                 to={link.to}
-                className={linkClass(isQuestionsPage && link.label === 'Questions')}
+                className={linkClass((isQuestionsPage && link.label === 'Questions') || (isTestsPage && link.label === 'Tests'))}
                 aria-current={
-                  isQuestionsPage && link.label === 'Questions' ? 'page' : undefined
+                  (isQuestionsPage && link.label === 'Questions') || (isTestsPage && link.label === 'Tests') ? 'page' : undefined
                 }
               >
                 {link.label}
@@ -70,7 +72,6 @@ export default function Navbar() {
             ) : null
           )}
           <button type="button" className={`${linkClass(false)} border-0 bg-transparent`} onClick={() => showUnavailable('Previous-year questions')}>PYQs</button>
-          <button type="button" className={`${linkClass(false)} border-0 bg-transparent`} onClick={() => showUnavailable('Tests')}>Tests</button>
           <Link to="/#about" className={linkClass(false)}>About</Link>
         </nav>
 
@@ -145,7 +146,6 @@ export default function Navbar() {
             ) : null
           )}
           <button type="button" className="border-b border-line py-3 text-left text-[0.9375rem] font-medium text-ink" onClick={() => showUnavailable('Previous-year questions')}>PYQs (unavailable)</button>
-          <button type="button" className="border-b border-line py-3 text-left text-[0.9375rem] font-medium text-ink" onClick={() => showUnavailable('Tests')}>Tests (unavailable)</button>
           <Link to="/#about" className="border-b border-line py-3 text-[0.9375rem] font-medium text-ink" onClick={() => setMenuOpen(false)}>About</Link>
           {!user && !isLoginPage && (
             <Link
