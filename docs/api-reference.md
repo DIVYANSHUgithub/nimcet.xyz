@@ -121,8 +121,12 @@ The response envelope is `{ "items": [<legacy question rows>], "page": 1, "page_
 | `PUT /attempts/{attempt_id}/answers/{attempt_question_id}` | Owning student, active and before deadline | Implemented locally with request `{selected_option_id, expected_version}`. Locks the owning attempt, validates option membership, and applies compare-and-swap versioning. |
 | `PUT /attempts/{attempt_id}/navigation` | Owning student | Implemented locally. Saves current question, visited state, and review flag after verifying that the question belongs to the attempt. No score effect. |
 | `POST /attempts/{attempt_id}/submit` | Owning student; active or deadline-expired | Implemented locally. Accepts only `student_submitted`; the server selects `timer_expired` at/after deadline. It locks, scores from the version snapshot, writes one submission/result/section breakdown transactionally, and returns a score-free receipt. Retries replay the same receipt. |
-| `GET /attempts/{attempt_id}/result` | Owning student after release; admin | Returns marks/counts/section scores according to publication policy. Before release returns `404` or `403` per privacy policy without leaking whether hidden result exists. |
-| `GET /attempts/{attempt_id}/review` | Owning student after review release; admin | Returns student answers, correct answers, explanations, marks, and section breakdown only when review policy allows. |
+| `GET /attempts/{attempt_id}/result` | Owning student after release | Implemented locally. Returns score and section counts only after `after_submit` or the configured timezone-aware `results_at`; pre-release, missing, and foreign attempts share `404`. |
+| `GET /attempts/{attempt_id}/review` | Owning student after review release | Implemented locally. Returns persisted question/option order, selected/correct choices, awarded marks, and explanation only after `with_results`, configured `answers_at`, or never (unavailable). |
+| `GET /students/me/attempts?page=1&page_size=20` | Student | Implemented locally. Lists only the caller's attempts and suppresses scores/review availability until the version policy releases them. |
+| `GET /students/me/dashboard` | Student | Implemented locally. Returns caller-owned attempt/completion totals and averages/best percentage across released results only. |
+
+Test-version authoring accepts `review_policy` with `results: after_submit | at_time`, optional timezone-aware `results_at`, `answers: with_results | at_time | never`, and optional timezone-aware `answers_at`. Defaults are `after_submit` and `with_results`. Scheduled answer review cannot precede a scheduled result. Leaderboards are not implemented until opt-in preferences, privacy rules, and score normalization are available.
 
 ### Safe active session example
 
@@ -166,8 +170,8 @@ The current Phase 8 draft snapshots legacy question text/options/answer indexes 
 | `POST /questions/{question_id}/reports` | Student | Creates categorized report with bounded description; rate-limited and tied to caller. |
 | `GET /admin/question-reports` | Administrator+ | Filter/status pagination; returns only report data needed for review. |
 | `PATCH /admin/question-reports/{id}` | Administrator+ | Updates review status/resolution and audit record. |
-| `GET /students/me/dashboard` | Student | Own aggregate dashboard, derived from evaluated attempts and saved records. |
-| `GET /students/me/attempts` | Student | Own attempt history with release-aware score fields. |
+| `GET /students/me/dashboard` | Student | Implemented locally for test attempt/completion and released-score aggregates. Bookmark/report aggregates remain future work. |
+| `GET /students/me/attempts` | Student | Implemented locally for owner-only attempt history with release-aware score fields. |
 | `PATCH /students/me/preferences` | Student | Own validated preferences and leaderboard opt-in. |
 
 ## Admin and audit

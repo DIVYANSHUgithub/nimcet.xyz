@@ -81,9 +81,9 @@ class TestAuthoringRepository:
                 text(
                     "INSERT INTO public.test_versions "
                     "(id,test_id,version_number,duration_seconds,attempt_limit,available_from,available_until,"
-                    "shuffle_questions,shuffle_options,status) "
+                    "shuffle_questions,shuffle_options,review_policy,status) "
                     "VALUES (:id,:test_id,:number,:duration,:limit,:available_from,:available_until,"
-                    ":shuffle_questions,:shuffle_options,'draft')"
+                    ":shuffle_questions,:shuffle_options,CAST(:review_policy AS jsonb),'draft')"
                 ),
                 {
                     "id": version_id,
@@ -95,6 +95,7 @@ class TestAuthoringRepository:
                     "available_until": version.available_until,
                     "shuffle_questions": version.shuffle_questions,
                     "shuffle_options": version.shuffle_options,
+                    "review_policy": json.dumps(version.review_policy.model_dump(mode="json")),
                 },
             )
             for section in version.sections:

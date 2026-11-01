@@ -10,6 +10,8 @@ const QuestionDetail = lazy(() => import('./pages/QuestionDetail'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const TestCatalog = lazy(() => import('./pages/TestCatalog'))
 const TestAttempt = lazy(() => import('./pages/TestAttempt'))
+const AttemptResult = lazy(() => import('./pages/AttemptResult'))
+const StudentResults = lazy(() => import('./pages/StudentResults'))
 
 function NotFound() {
   return (
@@ -34,6 +36,8 @@ function App() {
             <Route path="/questions/:questionId" element={<QuestionDetail />} />
             <Route path="/tests" element={<TestCatalog />} />
             <Route path="/attempts/:attemptId" element={<TestAttempt />} />
+            <Route path="/attempts/:attemptId/result" element={<AttemptResult />} />
+            <Route path="/results" element={<StudentResults />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/reset-password" element={<ResetPassword />} />

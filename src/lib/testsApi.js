@@ -37,3 +37,19 @@ export function submitAttempt(attemptId, options = {}) {
     ...options,
   })
 }
+
+export function getAttemptResult(attemptId, options = {}) {
+  return backendRequest(`attempts/${encodeURIComponent(attemptId)}/result`, options)
+}
+
+export function getAttemptReview(attemptId, options = {}) {
+  return backendRequest(`attempts/${encodeURIComponent(attemptId)}/review`, options)
+}
+
+export function getMyAttempts({ page = 1, pageSize = 20, signal } = {}) {
+  return backendRequest('students/me/attempts', { params: { page, page_size: pageSize }, signal })
+}
+
+export function getMyTestDashboard(options = {}) {
+  return backendRequest('students/me/dashboard', options)
+}

@@ -238,7 +238,7 @@ export default function TestAttempt() {
         <h1 className="mt-5 text-2xl font-bold text-ink-heading">{receipt?.submission_reason === 'timer_expired' || session?.status === 'expired' ? 'Time is up' : 'Attempt submitted'}</h1>
         <p className="mt-3 text-sm leading-6 text-ink-muted">Your responses have been recorded. Results and answer review will become available according to the test’s release settings.</p>
         {receipt && <p className="mt-4 text-xs text-ink-muted">Submitted {receipt.submitted_at ? new Date(receipt.submitted_at).toLocaleString() : 'successfully'}</p>}
-        <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row"><Button as={Link} to="/tests">Back to tests</Button><Button as={Link} to="/questions" variant="secondary">Practice questions</Button></div>
+        <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row"><Button as={Link} to={`/attempts/${attemptId}/result`}>View result</Button><Button as={Link} to="/tests" variant="secondary">Back to tests</Button></div>
       </section>
     </main>
   )

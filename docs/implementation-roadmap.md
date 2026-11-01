@@ -81,13 +81,13 @@ This plan follows the requested staged migration. Each phase must preserve the c
 - Added signed-in published-test catalog and responsive timed attempt interface with question map, section filtering, server-synchronized countdown, serialized autosaves, recovery, review marking, submit confirmation, and keyboard navigation. Added an authenticated read-only catalog endpoint to supply safe test summaries.
 - The active session projection omits correct answers and explanations. Attempts freeze question and option order, use PostgreSQL timestamps, and enforce owner, schedule, attempt limits, and deadline in the repository.
 - Backend unit/API coverage tests eligibility, safe projection, answer conflicts, navigation, deadlines, scoring, and idempotent submission. The SQL draft and smoke assertions have not been run against PostgreSQL because no isolated PostgreSQL/Docker/Podman environment is installed here.
-- Remaining: PostgreSQL 17 rehearsal and rollback test; Auth/role/runtime privilege validation; background expiry sweeper; results/review-release endpoint; audited test-builder UI; concurrency tests against PostgreSQL; migration-history reconciliation. Keep test feature disabled until the local migration is reviewed and applied only to a disposable project.
+- Remaining: PostgreSQL 17 rehearsal and rollback test; Auth/role/runtime privilege validation; background expiry sweeper; audited test-builder UI; concurrency tests against PostgreSQL; migration-history reconciliation. Keep test feature disabled until the local migration is reviewed and applied only to a disposable project.
 
 ## Phase 9 — Results and analytics
 
-- Add authoritative scoring from stored test rules and correct answers, section results, publication policy, attempt history, and student analytics.
-- Add review/answer release policy and ensure unavailable results/keys cannot be fetched early.
-- Implement leaderboards only with opt-in, privacy controls, and compatible score normalization.
+- **In progress:** added explicit release policies, owner-only result/review endpoints, personal attempt history and score analytics, and student result/review screens. Unreleased scores and answers are suppressed by the API.
+- Result policy supports immediate-after-submit or timezone-aware scheduled release. Answer review can follow the result, release at a configured time, or remain unavailable. Defaults are after-submit results and review with results.
+- Leaderboards remain deferred until student opt-in storage, privacy controls, and compatible score normalization are implemented.
 
 ## Phase 10 — Production hardening
 

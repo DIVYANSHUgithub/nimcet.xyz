@@ -5,11 +5,15 @@ from app.db.database import DatabaseUnavailable
 from app.db.test_engine import AttemptNotFound, TestEngineRepository
 from app.domain.test_engine import TestEngineConflict, TestEngineForbidden
 from app.schemas.tests import (
+    AttemptResultResponse,
+    AttemptReviewResponse,
     AttemptSubmissionResponse,
     PublicTestListResponse,
     SaveAnswerRequest,
     SaveAnswerResponse,
     SaveNavigationRequest,
+    StudentAnalyticsResponse,
+    StudentAttemptHistoryResponse,
     TestSession,
     SubmitAttemptRequest,
 )
@@ -17,6 +21,7 @@ from app.schemas.tests import (
 
 tests_router = APIRouter()
 attempts_router = APIRouter()
+student_analytics_router = APIRouter()
 
 
 def _repository(request: Request) -> TestEngineRepository:
@@ -103,6 +108,32 @@ def get_attempt(
     return TestSession.model_validate(payload)
 
 
+@attempts_router.get("/{attempt_id}/result", response_model=AttemptResultResponse)
+def get_attempt_result(
+    attempt_id: str,
+    request: Request,
+    principal=Depends(require_roles("student")),
+) -> AttemptResultResponse:
+    try:
+        payload = _repository(request).get_attempt_result(attempt_id=attempt_id, user_id=principal.user_id)
+    except (DatabaseUnavailable, AttemptNotFound, ValueError) as exc:
+        raise _handle_domain_error(exc) from None
+    return AttemptResultResponse.model_validate(payload)
+
+
+@attempts_router.get("/{attempt_id}/review", response_model=AttemptReviewResponse)
+def get_attempt_review(
+    attempt_id: str,
+    request: Request,
+    principal=Depends(require_roles("student")),
+) -> AttemptReviewResponse:
+    try:
+        payload = _repository(request).get_attempt_review(attempt_id=attempt_id, user_id=principal.user_id)
+    except (DatabaseUnavailable, AttemptNotFound, ValueError) as exc:
+        raise _handle_domain_error(exc) from None
+    return AttemptReviewResponse.model_validate(payload)
+
+
 @attempts_router.put("/{attempt_id}/answers/{attempt_question_id}", response_model=SaveAnswerResponse)
 def save_answer(
     attempt_id: str,
@@ -154,3 +185,31 @@ def submit_attempt(
     except (DatabaseUnavailable, AttemptNotFound, TestEngineForbidden, TestEngineConflict, ValueError) as exc:
         raise _handle_domain_error(exc) from None
     return AttemptSubmissionResponse.model_validate(result)
+
+
+@student_analytics_router.get("/me/attempts", response_model=StudentAttemptHistoryResponse)
+def list_my_attempts(
+    request: Request,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=50),
+    principal=Depends(require_roles("student")),
+) -> StudentAttemptHistoryResponse:
+    try:
+        payload = _repository(request).list_student_attempts(
+            user_id=principal.user_id, page=page, page_size=page_size
+        )
+    except DatabaseUnavailable as exc:
+        raise _handle_domain_error(exc) from None
+    return StudentAttemptHistoryResponse.model_validate(payload)
+
+
+@student_analytics_router.get("/me/dashboard", response_model=StudentAnalyticsResponse)
+def my_test_analytics(
+    request: Request,
+    principal=Depends(require_roles("student")),
+) -> StudentAnalyticsResponse:
+    try:
+        payload = _repository(request).get_student_analytics(user_id=principal.user_id)
+    except DatabaseUnavailable as exc:
+        raise _handle_domain_error(exc) from None
+    return StudentAnalyticsResponse.model_validate(payload)

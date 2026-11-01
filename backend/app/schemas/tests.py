@@ -43,6 +43,35 @@ class TestSectionDraft(BaseModel):
         return self
 
 
+class TestReviewPolicy(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    results: Literal["after_submit", "at_time"] = "after_submit"
+    results_at: datetime | None = None
+    answers: Literal["with_results", "at_time", "never"] = "with_results"
+    answers_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_release_times(self):
+        if self.results == "at_time" and self.results_at is None:
+            raise ValueError("results_at is required for scheduled result release")
+        if self.results == "after_submit" and self.results_at is not None:
+            raise ValueError("results_at is valid only for scheduled result release")
+        if self.results_at is not None and self.results_at.utcoffset() is None:
+            raise ValueError("results_at must include a timezone")
+        if self.answers == "at_time" and self.answers_at is None:
+            raise ValueError("answers_at is required for scheduled answer review")
+        if self.answers != "at_time" and self.answers_at is not None:
+            raise ValueError("answers_at is valid only for scheduled answer review")
+        if self.answers_at is not None and self.answers_at.utcoffset() is None:
+            raise ValueError("answers_at must include a timezone")
+        if (self.results == "at_time" and self.answers == "at_time"
+                and self.results_at is not None and self.answers_at is not None
+                and self.answers_at < self.results_at):
+            raise ValueError("answer review cannot release before the result")
+        return self
+
+
 class CreateTestDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -69,6 +98,7 @@ class CreateTestVersion(BaseModel):
     available_until: datetime | None = None
     shuffle_questions: bool = False
     shuffle_options: bool = False
+    review_policy: TestReviewPolicy = Field(default_factory=TestReviewPolicy)
     sections: list[TestSectionDraft] = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
@@ -177,6 +207,82 @@ class PublicTestListResponse(BaseModel):
     page_size: int = Field(ge=1, le=50)
     total: int = Field(ge=0)
     has_more: bool
+
+
+class ResultSection(BaseModel):
+    section_id: str
+    title: str
+    score: Decimal
+    maximum_score: Decimal
+    correct_count: int = Field(ge=0)
+    incorrect_count: int = Field(ge=0)
+    unanswered_count: int = Field(ge=0)
+
+
+class AttemptResultResponse(BaseModel):
+    attempt_id: str
+    test_id: str
+    test_title: str
+    status: Literal["submitted", "expired"]
+    submission_reason: Literal["student_submitted", "timer_expired"]
+    submitted_at: datetime
+    score: Decimal
+    maximum_score: Decimal
+    correct_count: int = Field(ge=0)
+    incorrect_count: int = Field(ge=0)
+    unanswered_count: int = Field(ge=0)
+    released_at: datetime
+    review_released: bool
+    sections: list[ResultSection]
+
+
+class AttemptReviewQuestion(BaseModel):
+    display_order: int = Field(ge=0)
+    section_title: str
+    question: str
+    options: list[SessionOption]
+    selected_option_id: str | None
+    correct_option_id: str
+    is_correct: bool
+    explanation: str | None = None
+    marks_awarded: Decimal
+    marks_available: Decimal
+
+
+class AttemptReviewResponse(BaseModel):
+    attempt_id: str
+    test_title: str
+    released_at: datetime
+    questions: list[AttemptReviewQuestion]
+
+
+class StudentAttemptSummary(BaseModel):
+    attempt_id: str
+    test_id: str
+    test_title: str
+    status: Literal["in_progress", "submitted", "expired", "terminated"]
+    started_at: datetime
+    submitted_at: datetime | None
+    score: Decimal | None = None
+    maximum_score: Decimal | None = None
+    result_released: bool
+    review_released: bool
+
+
+class StudentAttemptHistoryResponse(BaseModel):
+    items: list[StudentAttemptSummary]
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=50)
+    total: int = Field(ge=0)
+    has_more: bool
+
+
+class StudentAnalyticsResponse(BaseModel):
+    attempts_count: int = Field(ge=0)
+    completed_count: int = Field(ge=0)
+    released_results_count: int = Field(ge=0)
+    average_percentage: Decimal | None = None
+    best_percentage: Decimal | None = None
 
 
 class AttemptSubmissionResponse(BaseModel):

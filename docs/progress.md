@@ -151,4 +151,14 @@ The read-only API implementation slice and local unit tests are complete. Phase 
 - Verification before adding the catalog API: backend suite **59 passed**; Python compileall passed; ESLint passed with an ignore pattern for inaccessible pytest-generated temp directories. SQL migration rehearsal was not possible because this environment has no PostgreSQL server, Docker, or Podman. No migration or production data was changed.
 - Added a signed-in test catalog and responsive student attempt UI with timer, autosave status, section/question navigator, review markers, submit confirmation, and recovery on reconnect. Added the authenticated, read-only published-test catalog API used by that UI.
 - Frontend ESLint and backend Python compilation pass. Vite production build is currently blocked before app compilation because the installed Tailwind Windows native binding cannot be loaded (`spawn EPERM` / missing `@tailwindcss/oxide-win32-x64-msvc` binary); dependency repair or a working build environment is needed to verify a production bundle.
-- Remaining gates: PostgreSQL 17/Supabase rehearsal, failure/rollback and real concurrency tests, actual runtime-role grants, scheduled expiry processing, release-aware result/review endpoints, and audited admin test-builder UI. Phase 8 remains in progress.
+- Remaining gates: PostgreSQL 17/Supabase rehearsal, failure/rollback and real concurrency tests, actual runtime-role grants, scheduled expiry processing, and audited admin test-builder UI. Phase 8 remains in progress.
+
+## Phase 9 — Results and analytics
+
+**Status:** Local release-aware results and personal analytics slice implemented; database integration remains gated on the Phase 8 isolated migration rehearsal.
+
+- Added validated version policy: results release after submission or at a timezone-aware configured time; answer review follows results, releases at its own configured time, or stays hidden. Defaults are after-submit results and review with results.
+- Added owner-scoped result and answer-review endpoints. Result payloads include section breakdowns; review includes persisted question/option order, selected/correct choices, awarded marks, and explanations. Pre-release, missing, and foreign attempts share a not-found response.
+- Added owner-only attempt history and personal aggregates. Unreleased scores are excluded from history and average/best percentages; no cross-student ranking or public profile is exposed.
+- Added student result and attempt-history screens with score breakdowns and release-aware answer review. Leaderboards are deferred until opt-in preferences, privacy controls, and score normalization are implemented.
+- Verification: frontend ESLint and Python compilation pass. No database integration test or database connection was run. Importing the FastAPI router is blocked because PyJWT is not installed in this environment; Vite build is blocked by the unavailable Tailwind Windows native binding.

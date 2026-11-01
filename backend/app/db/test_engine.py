@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
@@ -53,11 +53,259 @@ def _question_snapshot(row: dict[str, Any]) -> QuestionSnapshot:
     )
 
 
+def _policy_time(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        result = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return result if result.utcoffset() is not None else None
+
+
+def _result_release_time(policy: dict[str, Any], submitted_at: datetime | None, now: datetime) -> datetime | None:
+    if submitted_at is None:
+        return None
+    mode = policy.get("results", "after_submit")
+    if mode == "after_submit":
+        return submitted_at
+    release_at = _policy_time(policy.get("results_at")) if mode == "at_time" else None
+    return release_at if release_at is not None and release_at <= now else None
+
+
+def _review_release_time(
+    policy: dict[str, Any], result_release: datetime | None, now: datetime
+) -> datetime | None:
+    mode = policy.get("answers", "with_results")
+    if mode == "with_results":
+        return result_release
+    if mode == "at_time":
+        release_at = _policy_time(policy.get("answers_at"))
+        return release_at if release_at is not None and release_at <= now else None
+    return None
+
+
 class TestEngineRepository:
     """Transactional test attempt operations over the Phase 8 draft schema."""
 
     def __init__(self, database: Database):
         self.database = database
+
+    def get_attempt_result(self, *, attempt_id: str, user_id: str) -> dict[str, Any]:
+        attempt_uuid, user_uuid = map(_as_uuid, (attempt_id, user_id))
+        with self.database.read_only_transaction() as connection:
+            row = connection.execute(
+                text(
+                    "SELECT a.id AS attempt_id,a.status,t.id AS test_id,t.title AS test_title,"
+                    "s.submission_reason,s.submitted_at AS submission_time,v.review_policy,"
+                    "r.score,r.maximum_score,r.correct_count,r.incorrect_count,r.unanswered_count,"
+                    "r.released_at,clock_timestamp() AS server_time "
+                    "FROM public.test_attempts a JOIN public.test_versions v ON v.id=a.test_version_id "
+                    "JOIN public.tests t ON t.id=v.test_id "
+                    "LEFT JOIN public.test_submissions s ON s.attempt_id=a.id "
+                    "LEFT JOIN public.test_results r ON r.attempt_id=a.id "
+                    "WHERE a.id=:attempt_id AND a.user_id=:user_id"
+                ),
+                {"attempt_id": attempt_uuid, "user_id": user_uuid},
+            ).mappings().first()
+            if row is None or row["status"] not in {"submitted", "expired"} or row["score"] is None:
+                raise AttemptNotFound
+            policy = row["review_policy"] if isinstance(row["review_policy"], dict) else {}
+            released_at = _result_release_time(policy, row["submission_time"], row["server_time"])
+            if released_at is None:
+                raise AttemptNotFound
+            review_release = _review_release_time(policy, released_at, row["server_time"])
+            sections = connection.execute(
+                text(
+                    "SELECT sr.test_section_id AS section_id,ts.title,sr.score,sr.maximum_score,"
+                    "sr.correct_count,sr.incorrect_count,sr.unanswered_count "
+                    "FROM public.section_results sr JOIN public.test_sections ts ON ts.id=sr.test_section_id "
+                    "WHERE sr.attempt_id=:attempt_id ORDER BY ts.display_order"
+                ),
+                {"attempt_id": attempt_uuid},
+            ).mappings().all()
+        return {
+            "attempt_id": str(row["attempt_id"]),
+            "test_id": str(row["test_id"]),
+            "test_title": row["test_title"],
+            "status": row["status"],
+            "submission_reason": row["submission_reason"],
+            "submitted_at": row["submission_time"],
+            "score": row["score"],
+            "maximum_score": row["maximum_score"],
+            "correct_count": row["correct_count"],
+            "incorrect_count": row["incorrect_count"],
+            "unanswered_count": row["unanswered_count"],
+            "released_at": row["released_at"] or released_at,
+            "review_released": review_release is not None,
+            "sections": [
+                {
+                    "section_id": str(section["section_id"]),
+                    "title": section["title"],
+                    "score": section["score"],
+                    "maximum_score": section["maximum_score"],
+                    "correct_count": section["correct_count"],
+                    "incorrect_count": section["incorrect_count"],
+                    "unanswered_count": section["unanswered_count"],
+                }
+                for section in sections
+            ],
+        }
+
+    def get_attempt_review(self, *, attempt_id: str, user_id: str) -> dict[str, Any]:
+        attempt_uuid, user_uuid = map(_as_uuid, (attempt_id, user_id))
+        with self.database.read_only_transaction() as connection:
+            attempt = connection.execute(
+                text(
+                    "SELECT a.status,t.title AS test_title,s.submitted_at,v.review_policy,"
+                    "clock_timestamp() AS server_time FROM public.test_attempts a "
+                    "JOIN public.test_versions v ON v.id=a.test_version_id "
+                    "JOIN public.tests t ON t.id=v.test_id "
+                    "LEFT JOIN public.test_submissions s ON s.attempt_id=a.id "
+                    "WHERE a.id=:attempt_id AND a.user_id=:user_id"
+                ),
+                {"attempt_id": attempt_uuid, "user_id": user_uuid},
+            ).mappings().first()
+            if attempt is None or attempt["status"] not in {"submitted", "expired"}:
+                raise AttemptNotFound
+            policy = attempt["review_policy"] if isinstance(attempt["review_policy"], dict) else {}
+            result_release = _result_release_time(policy, attempt["submitted_at"], attempt["server_time"])
+            review_release = _review_release_time(policy, result_release, attempt["server_time"])
+            if review_release is None:
+                raise AttemptNotFound
+            rows = connection.execute(
+                text(
+                    "SELECT aq.display_order,ts.title AS section_title,tq.question_snapshot,tq.options_snapshot,"
+                    "tq.correct_option_snapshot,tq.explanation_snapshot,aq.option_order,aa.selected_option_id,"
+                    "COALESCE(tq.marks,ts.default_marks) AS marks,"
+                    "COALESCE(tq.negative_marks,ts.default_negative_marks) AS negative_marks "
+                    "FROM public.attempt_questions aq JOIN public.test_questions tq ON tq.id=aq.test_question_id "
+                    "JOIN public.test_sections ts ON ts.id=tq.test_section_id "
+                    "LEFT JOIN public.attempt_answers aa ON aa.attempt_question_id=aq.id "
+                    "WHERE aq.attempt_id=:attempt_id ORDER BY aq.display_order"
+                ),
+                {"attempt_id": attempt_uuid},
+            ).mappings().all()
+        questions = []
+        for item in rows:
+            options = item["options_snapshot"]
+            option_order = item["option_order"]
+            if not isinstance(options, list) or len(options) != 4 or not isinstance(option_order, list):
+                raise ValueError("invalid_test_question_snapshot")
+            try:
+                option_order = [int(index) for index in option_order]
+            except (TypeError, ValueError):
+                raise ValueError("invalid_test_question_snapshot") from None
+            if sorted(option_order) != [0, 1, 2, 3]:
+                raise ValueError("invalid_test_question_snapshot")
+            selected = item["selected_option_id"]
+            correct_id = f"option-{int(item['correct_option_snapshot'])}"
+            marks = Decimal(str(item["marks"]))
+            negative = Decimal(str(item["negative_marks"]))
+            earned = Decimal("0") if selected is None else (marks if selected == correct_id else -negative)
+            questions.append({
+                "display_order": int(item["display_order"]),
+                "section_title": item["section_title"],
+                "question": item["question_snapshot"],
+                "options": [
+                    {"id": f"option-{index}", "content": options[index]}
+                    for index in option_order
+                ],
+                "selected_option_id": selected,
+                "correct_option_id": correct_id,
+                "is_correct": selected == correct_id if selected is not None else False,
+                "explanation": item["explanation_snapshot"],
+                "marks_awarded": earned,
+                "marks_available": marks,
+            })
+        return {
+            "attempt_id": str(attempt_uuid),
+            "test_title": attempt["test_title"],
+            "released_at": review_release,
+            "questions": questions,
+        }
+
+    def list_student_attempts(self, *, user_id: str, page: int = 1, page_size: int = 20) -> dict[str, Any]:
+        user_uuid = _as_uuid(user_id)
+        page = max(1, int(page))
+        page_size = min(50, max(1, int(page_size)))
+        offset = (page - 1) * page_size
+        with self.database.read_only_transaction() as connection:
+            total = int(connection.execute(
+                text("SELECT count(*) FROM public.test_attempts WHERE user_id=:user_id"),
+                {"user_id": user_uuid},
+            ).scalar_one())
+            rows = connection.execute(
+                text(
+                    "SELECT a.id AS attempt_id,t.id AS test_id,t.title AS test_title,a.status,a.started_at,"
+                    "a.submitted_at,v.review_policy,r.score,r.maximum_score,clock_timestamp() AS server_time "
+                    "FROM public.test_attempts a JOIN public.test_versions v ON v.id=a.test_version_id "
+                    "JOIN public.tests t ON t.id=v.test_id LEFT JOIN public.test_results r ON r.attempt_id=a.id "
+                    "WHERE a.user_id=:user_id ORDER BY a.started_at DESC,a.id LIMIT :limit OFFSET :offset"
+                ),
+                {"user_id": user_uuid, "limit": page_size, "offset": offset},
+            ).mappings().all()
+        items = []
+        for row in rows:
+            policy = row["review_policy"] if isinstance(row["review_policy"], dict) else {}
+            result_release = _result_release_time(policy, row["submitted_at"], row["server_time"])
+            result_released = result_release is not None and row["score"] is not None
+            review_release = (
+                _review_release_time(policy, result_release, row["server_time"])
+                if row["status"] in {"submitted", "expired"}
+                else None
+            )
+            items.append({
+                "attempt_id": str(row["attempt_id"]),
+                "test_id": str(row["test_id"]),
+                "test_title": row["test_title"],
+                "status": row["status"],
+                "started_at": row["started_at"],
+                "submitted_at": row["submitted_at"],
+                "score": row["score"] if result_released else None,
+                "maximum_score": row["maximum_score"] if result_released else None,
+                "result_released": result_released,
+                "review_released": review_release is not None,
+            })
+        return {
+            "items": items,
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "has_more": offset + len(items) < total,
+        }
+
+    def get_student_analytics(self, *, user_id: str) -> dict[str, Any]:
+        user_uuid = _as_uuid(user_id)
+        with self.database.read_only_transaction() as connection:
+            rows = connection.execute(
+                text(
+                    "SELECT a.status,a.submitted_at,v.review_policy,r.score,r.maximum_score,"
+                    "clock_timestamp() AS server_time FROM public.test_attempts a "
+                    "JOIN public.test_versions v ON v.id=a.test_version_id "
+                    "LEFT JOIN public.test_results r ON r.attempt_id=a.id WHERE a.user_id=:user_id"
+                ),
+                {"user_id": user_uuid},
+            ).mappings().all()
+        percentages = []
+        completed_count = 0
+        for row in rows:
+            if row["status"] in {"submitted", "expired"}:
+                completed_count += 1
+            policy = row["review_policy"] if isinstance(row["review_policy"], dict) else {}
+            maximum = Decimal(str(row["maximum_score"])) if row["maximum_score"] is not None else Decimal("0")
+            if (row["score"] is not None and maximum > 0
+                    and _result_release_time(policy, row["submitted_at"], row["server_time"]) is not None):
+                percentages.append(Decimal(str(row["score"])) / maximum * Decimal("100"))
+        average = (sum(percentages, Decimal("0")) / len(percentages)).quantize(Decimal("0.01")) if percentages else None
+        best = max(percentages).quantize(Decimal("0.01")) if percentages else None
+        return {
+            "attempts_count": len(rows),
+            "completed_count": completed_count,
+            "released_results_count": len(percentages),
+            "average_percentage": average,
+            "best_percentage": best,
+        }
 
     def list_public_tests(self, *, user_id: str, page: int = 1, page_size: int = 12) -> dict[str, Any]:
         user_uuid = _as_uuid(user_id)
@@ -428,8 +676,9 @@ class TestEngineRepository:
         with self.database.transaction() as connection:
             attempt = connection.execute(
                 text(
-                    "SELECT id,status,deadline_at,clock_timestamp() AS server_time "
-                    "FROM public.test_attempts WHERE id=:attempt_id AND user_id=:user_id FOR UPDATE"
+                    "SELECT a.id,a.status,a.deadline_at,v.review_policy,clock_timestamp() AS server_time "
+                    "FROM public.test_attempts AS a JOIN public.test_versions AS v ON v.id=a.test_version_id "
+                    "WHERE a.id=:attempt_id AND a.user_id=:user_id FOR UPDATE OF a"
                 ),
                 {"attempt_id": attempt_uuid, "user_id": user_uuid},
             ).mappings().first()
@@ -495,6 +744,11 @@ class TestEngineRepository:
             result = evaluate_attempt(questions=snapshots, answers=answers)
             terminal_status = "expired" if reason == "timer_expired" else "submitted"
             submitted_at = attempt["server_time"]
+            policy = attempt["review_policy"] if isinstance(attempt["review_policy"], dict) else {}
+            result_schedule = _policy_time(policy.get("results_at")) if policy.get("results") == "at_time" else None
+            released_at = submitted_at if policy.get("results", "after_submit") == "after_submit" else (
+                result_schedule if result_schedule is not None and result_schedule <= submitted_at else None
+            )
             connection.execute(
                 text(
                     "INSERT INTO public.test_submissions (attempt_id,submission_reason,submitted_at) "
@@ -517,8 +771,8 @@ class TestEngineRepository:
             connection.execute(
                 text(
                     "INSERT INTO public.test_results "
-                    "(attempt_id,score,maximum_score,correct_count,incorrect_count,unanswered_count) "
-                    "VALUES (:attempt_id,:score,:maximum,:correct,:incorrect,:unanswered)"
+                    "(attempt_id,score,maximum_score,correct_count,incorrect_count,unanswered_count,released_at) "
+                    "VALUES (:attempt_id,:score,:maximum,:correct,:incorrect,:unanswered,:released_at)"
                 ),
                 {
                     "attempt_id": attempt_uuid,
@@ -527,6 +781,7 @@ class TestEngineRepository:
                     "correct": result["correct"],
                     "incorrect": result["incorrect"],
                     "unanswered": result["unanswered"],
+                    "released_at": released_at,
                 },
             )
             for section in result["sections"]:

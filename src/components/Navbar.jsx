@@ -10,6 +10,7 @@ import { useAuth } from '../context/useAuth'
 const navLinks = [
   { label: 'Questions', to: '/questions' },
   { label: 'Tests', to: '/tests' },
+  { label: 'My results', to: '/results' },
 ]
 
 export default function Navbar() {
@@ -23,6 +24,7 @@ export default function Navbar() {
   const isQuestionsPage =
     pathname === '/questions' || pathname.startsWith('/questions/')
   const isTestsPage = pathname === '/tests' || pathname.startsWith('/attempts/')
+  const isResultsPage = pathname === '/results'
 
   const linkClass = (active) =>
     cn(
@@ -62,9 +64,9 @@ export default function Navbar() {
               <Link
                 key={link.label}
                 to={link.to}
-                className={linkClass((isQuestionsPage && link.label === 'Questions') || (isTestsPage && link.label === 'Tests'))}
+                className={linkClass((isQuestionsPage && link.label === 'Questions') || (isTestsPage && link.label === 'Tests') || (isResultsPage && link.label === 'My results'))}
                 aria-current={
-                  (isQuestionsPage && link.label === 'Questions') || (isTestsPage && link.label === 'Tests') ? 'page' : undefined
+                  (isQuestionsPage && link.label === 'Questions') || (isTestsPage && link.label === 'Tests') || (isResultsPage && link.label === 'My results') ? 'page' : undefined
                 }
               >
                 {link.label}
