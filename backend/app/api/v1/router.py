@@ -11,7 +11,7 @@ from app.api.v1.routes.test_engine import (
 from app.api.v1.routes.test_authoring import router as test_authoring_router
 
 
-def create_api_router(test_engine_enabled: bool = False) -> APIRouter:
+def create_api_router(test_engine_enabled: bool = True) -> APIRouter:
     api_router = APIRouter()
 
     api_router.include_router(me_router, prefix="/auth", tags=["auth"])

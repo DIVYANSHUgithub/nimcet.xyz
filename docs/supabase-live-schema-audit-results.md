@@ -136,6 +136,19 @@ The following findings require additional audit output or dashboard/connection i
 
 No production changes, migration creation, or RLS policy changes are part of this report.
 
+## 2026-11-04 follow-up read-only production check
+
+This follow-up was run through the linked Supabase CLI for the configured project `fchvtcnhabmnlfxsrzvu`. The earlier sections above record the 2026-11-01 audit snapshot; the following newer observations supersede conflicting migration-ledger and count statements. No production SQL was applied by this investigation.
+
+- The live database is PostgreSQL **17.11**. The CLI query ran as `postgres`; it is the database owner and has `BYPASSRLS`/`CREATEROLE`, while `rolsuper` is false. This does not verify the deployed FastAPI connection role.
+- `supabase_migrations.schema_migrations` exists. The current linked migration listing records `20261101000000 create_catalog_tables`, `20261101010000 create_trusted_roles_and_admin_audit`, `20261101015000 create_questions_table`, and `20261101020000 create_test_engine` as applied. All four versioned migration files are present locally. An earlier owner-provided CLI listing showed only three local versions pending; the newer listing is the current observation. No migration was applied by this investigation.
+- `public.roles`, `public.user_roles`, and `public.admin_audit_log` exist with columns matching the local trusted-role migration. RLS is enabled, not forced, and no policies exist on those tables. `anon` and `authenticated` have no direct SELECT or INSERT privilege on them. The four seeded role codes exist; there are zero historical super-administrator assignments and zero `role.bootstrap_first_super_administrator` audit rows.
+- The owner-specified Auth UUID is **not present** in `auth.users`; the table currently contains one user. The current `public.questions` count is **1**, compared with **102** in the 2026-11-01 snapshot. No row-level comparison or cause analysis was performed. Do not infer that this investigation changed either count; no production write was issued.
+- The current `public` schema has an additional `public_test_questions` view. It is `security_invoker=true`, grants SELECT to `anon` and `authenticated`, and selects from `public.test_questions`; that base table has RLS enabled. Four SELECT policies on `tests`, `test_versions`, `test_sections`, and `test_questions` are also present but are not defined in the local Phase 8 migration. Preserve these objects and reconcile their provenance before any further schema operation.
+- Broad default privileges for `postgres` and `supabase_admin` remain present. The trusted-role migration revokes direct client access from its own tables; continue verifying effective grants for each deployed operator/runtime role.
+
+Production role bootstrap is not currently valid because the specified Auth UUID is absent. Migration/history and data-count differences also require owner reconciliation before any further production change. `TRUSTED_ROLE_LOOKUP_ENABLED` remains false in the local FastAPI configuration.
+
 ## Repository documentation status
 
 `docs/progress.md` tracks the follow-up Phase 6/7 work. The architecture and database schema documents remain target-design documents and retain their explicit distinction between proposals and live schema.

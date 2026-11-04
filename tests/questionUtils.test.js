@@ -1,10 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import katex from 'katex'
-import { normalizeQuestion, validateQuestion } from '../src/utils/normalizeQuestion.js'
-import { buildPageNumbers } from '../src/utils/filterQuestions.js'
-import { parseMathParts } from '../src/utils/parseMathParts.js'
-import { validateLogin, validateSignup } from '../src/utils/validateAuth.js'
+import { normalizeQuestion, validateQuestion } from '../clientFront/src/utils/normalizeQuestion.js'
+import { buildPageNumbers } from '../clientFront/src/utils/filterQuestions.js'
+import { parseMathParts } from '../clientFront/src/utils/parseMathParts.js'
+import { validateLogin, validateSignup } from '../clientFront/src/utils/validateAuth.js'
 
 test('normalizes a published database row and uses its zero-based correct option', () => {
   const question = normalizeQuestion({

@@ -39,8 +39,9 @@ Available commands:
 - `npm run dev` — start the local development server.
 - `npm run admin:dev` — start the separate admin app.
 - `npm run lint` — run ESLint.
-- `npm test` — run the Node test suite for the backend API client, question normalization, media option handling, math parsing/KaTeX support, daily answer consistency, and pagination boundaries.
+- `npm test` — run the repository Node test suite for backend API calls, question normalization, media/math rendering, admin access, and pagination.
 - `npm run build` — create the production build.
 - `npm run admin:build` — build the separate admin app.
 
 The first local daily-question item is excluded until its corrupted summation and mismatched probability explanation can be checked against an authoritative source.
+

@@ -1,4 +1,3 @@
-import logging
 import json
 from dataclasses import dataclass
 from uuid import UUID
@@ -8,9 +7,11 @@ from sqlalchemy import text
 from app.core.security import RoleResolver, VerifiedIdentity
 from app.db.database import Database, DatabaseUnavailable
 
-logger = logging.getLogger(__name__)
-
 ALLOWED_ROLES = frozenset({"student", "editor", "administrator", "super_administrator"})
+
+
+class RoleStorageUnavailable(Exception):
+    """Trusted role assignments could not be checked; authorization must stop."""
 
 
 class RoleNotFound(Exception):
@@ -34,7 +35,7 @@ class RoleAssignmentResult:
 
 
 class DatabaseRoleResolver(RoleResolver):
-    """Resolve permissions only from active database assignments; fail closed to student."""
+    """Resolve permissions only from active database assignments."""
 
     def __init__(self, database: Database):
         self.database = database
@@ -56,10 +57,9 @@ class DatabaseRoleResolver(RoleResolver):
                     {"user_id": user_id},
                 ).scalars().all()
         except DatabaseUnavailable:
-            # Role storage may not exist until its reviewed migration is deployed.
-            # A storage failure must never grant more than ordinary student access.
-            logger.warning("trusted role lookup failed")
-            return frozenset({"student"})
+            # A failed lookup is not equivalent to a successful lookup with no
+            # assignments. Callers must return unavailable instead of masking it.
+            raise RoleStorageUnavailable from None
 
         roles = frozenset(role for role in rows if role in ALLOWED_ROLES)
         return roles or frozenset({"student"})

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { hasAdminAccess } from '../admin/src/adminAccess.js'
+import { hasAdminAccess } from '../admin/adminFront/src/adminAccess.js'
 
 test('admin access requires a trusted backend role from the supported role set', () => {
   assert.equal(hasAdminAccess(undefined), false)

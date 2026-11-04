@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     database_url: SecretStr | None = None
     trusted_role_lookup_enabled: bool = False
     test_engine_enabled: bool = False
+
     cors_allowed_origins: str = "http://localhost:5173"
 
     @property

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { backendGet, backendRequest } from '../../src/lib/backendApi.js'
-import { getSupabaseConfigError, isSupabaseConfigured, supabase } from '../../src/lib/supabase.js'
-import { useAuth } from '../../src/context/useAuth.js'
+import { backendGet, backendRequest } from '../../../clientFront/src/lib/backendApi.js'
+import { getSupabaseConfigError, isSupabaseConfigured, supabase } from '../../../clientFront/src/lib/supabase.js'
+import { useAuth } from '../../../clientFront/src/context/useAuth.js'
 import { hasAdminAccess } from './adminAccess.js'
 
 export default function AdminApp() {

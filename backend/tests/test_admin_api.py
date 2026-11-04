@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from app.core.config import Settings
 from app.core.security import VerifiedIdentity
 from app.db.database import DatabaseUnavailable
-from app.db.roles import DatabaseRoleResolver, LastSuperAdministrator
+from app.db.roles import DatabaseRoleResolver, LastSuperAdministrator, RoleStorageUnavailable
 from app.main import create_app
 
 _ACTOR_ID = "d1412600-46f2-4c6f-88a3-5e238328e58e"
@@ -107,10 +107,19 @@ def test_role_resolver_reads_only_active_allowlisted_assignments():
     assert params == {"user_id": UUID(_ACTOR_ID)}
 
 
-def test_role_resolver_defaults_to_student_and_fails_closed_on_storage_error():
+def test_role_resolver_defaults_to_student_only_after_successful_empty_lookup():
     identity = VerifiedIdentity(_ACTOR_ID, "https://test.example/auth/v1", "authenticated")
     assert DatabaseRoleResolver(_Database()).roles_for(identity) == frozenset({"student"})
-    assert DatabaseRoleResolver(_Database(unavailable=True)).roles_for(identity) == frozenset({"student"})
+
+
+def test_role_resolver_surfaces_storage_outage():
+    identity = VerifiedIdentity(_ACTOR_ID, "https://test.example/auth/v1", "authenticated")
+    try:
+        DatabaseRoleResolver(_Database(unavailable=True)).roles_for(identity)
+    except RoleStorageUnavailable:
+        pass
+    else:
+        raise AssertionError("Role storage failure must remain distinguishable from no assignments.")
 
 
 def test_admin_dashboard_requires_backend_role_before_reading_counts():

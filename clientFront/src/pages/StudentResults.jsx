@@ -5,6 +5,7 @@ import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import Button from '../components/ui/Button'
 import { useAuth } from '../context/useAuth'
+import { ApiRequestError } from '../lib/backendApi'
 import { getMyAttempts, getMyTestDashboard } from '../lib/testsApi'
 
 const EMPTY_HISTORY = { items: [], page: 1, page_size: 20, total: 0, has_more: false }
@@ -36,7 +37,13 @@ export default function StudentResults() {
       setError('')
     } catch (reason) {
       if (reason?.name === 'AbortError' || signal?.aborted) return
-      setError(reason?.status === 401 ? 'Sign in to view your test history.' : 'Your test history could not be loaded. Please retry.')
+      setError(reason?.status === 401
+        ? 'Sign in to view your test history.'
+        : reason instanceof ApiRequestError && reason.status === 404 && reason.code === 'http_error'
+          ? 'The test service is not enabled for this deployment yet. Please try again later.'
+          : reason instanceof ApiRequestError && reason.status === 503
+            ? 'The test service is temporarily unavailable. Please retry in a moment.'
+            : 'Your test history could not be loaded. Please retry.')
     } finally {
       if (!signal?.aborted) setLoading(false)
     }

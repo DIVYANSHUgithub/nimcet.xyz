@@ -21,7 +21,9 @@ function friendlyError(error) {
   if (error instanceof ApiRequestError) {
     if (error.status === 401) return 'Sign in to view and take tests.'
     if (error.status === 403) return 'Test access is not enabled for this account yet.'
+    if (error.status === 404 && error.code === 'http_error') return 'The test service is not enabled for this deployment yet. Please try again later.'
     if (error.status === 404) return 'This test is no longer available.'
+    if (error.status === 503) return 'The test service is temporarily unavailable. Please retry in a moment.'
     if (error.status === 409) return 'An attempt is already active. Resume it to continue.'
   }
   return error?.message || 'Tests could not be loaded. Please try again.'

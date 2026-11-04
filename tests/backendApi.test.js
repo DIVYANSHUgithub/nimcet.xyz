@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ApiRequestError, createBackendApi } from '../src/lib/backendApi.js'
+import { ApiRequestError, createBackendApi } from '../clientFront/src/lib/backendApi.js'
 
 test('backend GET adds filters, forwards the current bearer token, and omits cookies', async () => {
   const controller = new AbortController()

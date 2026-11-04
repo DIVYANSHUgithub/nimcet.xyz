@@ -18,6 +18,8 @@ The copy step creates an ignored local secret/config file. Fill JWT verification
 
 `DATABASE_URL` must be configured with a dedicated least-privilege database role and TLS for a hosted database; do not use a broad service-role credential as an authorization substitute. Keep the URI in the ignored local `.env` or deployment secret manager. `GET /health` works without dependencies; `GET /ready` returns 503 until database and Auth verification config are ready.
 
+Trusted database role lookup and the test engine are opt-in (`TRUSTED_ROLE_LOOKUP_ENABLED=false`, `TEST_ENGINE_ENABLED=false` by default). Enable them only after the intended Supabase project is reconciled, the role bootstrap and test schema are verified there, and the backend runtime database grants have been checked. Do not turn them on just to hide a missing API route or database configuration.
+
 ## API foundation
 
 - `GET /health`: process liveness.

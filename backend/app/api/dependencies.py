@@ -9,6 +9,7 @@ from app.core.security import (
     InvalidAccessToken,
     Principal,
 )
+from app.db.roles import RoleStorageUnavailable
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -43,7 +44,13 @@ async def get_current_principal(
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
 
-    roles = request.app.state.role_resolver.roles_for(identity)
+    try:
+        roles = request.app.state.role_resolver.roles_for(identity)
+    except RoleStorageUnavailable:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "role_storage_unavailable", "message": "Authorization data is temporarily unavailable."},
+        ) from None
     return Principal(user_id=identity.subject, roles=roles)
 
 

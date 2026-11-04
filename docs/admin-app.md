@@ -9,7 +9,7 @@ The separate Vite application lives in `admin/` and runs with `npm run admin:dev
 - The app does not read `user_metadata`, `app_metadata`, local storage role values, or other browser-controlled claims to decide access.
 - API errors, unavailable backend configuration, invalid sessions, and student-only roles fail closed. The current shell has a read-only question-count dashboard, a super-administrator-only role assignment form, and a redacted recent role-audit list; question editing, media operations, and publication are not implemented.
 - The FastAPI role resolver defaults to `student`. Database-backed role lookup is opt-in and must stay disabled until the role migration is reviewed, rehearsed, and deployed to the intended non-production database.
-- Role grants and revocations require a reason and are written with an audit record in the same transaction. The backend rejects self role changes and prevents revoking the last super administrator. The first super-administrator bootstrap remains an out-of-band owner decision and is not automated.
+- Role grants and revocations require a reason and are written with an audit record in the same transaction. The backend rejects self role changes and prevents revoking the last super administrator. The first super-administrator bootstrap is owner-operated through the guarded out-of-band command in `backend/scripts/bootstrap_first_super_admin.py`; it is not exposed as a web route.
 
 ## Enablement and remaining work
 

@@ -39,6 +39,12 @@ def make_settings(**overrides) -> Settings:
     return Settings(**values)
 
 
+def test_privileged_and_test_routes_are_opt_in_by_default():
+    settings = Settings(_env_file=None)
+    assert settings.trusted_role_lookup_enabled is False
+    assert settings.test_engine_enabled is False
+
+
 def make_token(*, secret: Any = HS256_SECRET, algorithm: str = "HS256", **claim_overrides) -> str:
     now = datetime.now(UTC)
     claims = {
