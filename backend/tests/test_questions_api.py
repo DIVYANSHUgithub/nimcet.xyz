@@ -105,7 +105,9 @@ def test_list_questions_returns_published_practice_projection_and_filters(monkey
     body = response.json()
     assert body["total"] == 1
     assert body["has_more"] is False
-    assert body["items"][0]["correct_option"] == 1
+    assert "correct_option" not in body["items"][0]
+    assert "explanation" not in body["items"][0]
+    assert body["items"][0]["option_ids"] == [f"option-{i}" for i in range(4)]
     assert body["items"][0]["status"] == "published"
     page, size, filters, sort = repository.calls[0]
     assert (page, size, sort) == (1, 10, "recent")

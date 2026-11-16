@@ -16,8 +16,9 @@ class QuestionItem(BaseModel):
     question_number: int | None = None
     question: str | None = None
     options: list[Any] | None = None
-    correct_option: int | None = None
-    explanation: str | None = None
+    statement_blocks: list[Any] = Field(default_factory=list)
+    option_ids: list[str] = Field(default_factory=list)
+    revision: int = 0
     subject: str | None = None
     topic: str | None = None
     difficulty: str | None = None

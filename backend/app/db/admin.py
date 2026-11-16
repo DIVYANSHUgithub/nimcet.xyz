@@ -2,7 +2,7 @@ from sqlalchemy import text
 
 from app.db.database import Database
 
-_SAFE_AUDIT_KEYS = frozenset({"user_id", "role_code", "revoked"})
+_SAFE_AUDIT_KEYS = frozenset({"user_id", "role_code", "revoked", "status", "workflow_state", "workflow_revision", "archived"})
 
 
 def _safe_audit_state(value):
@@ -12,7 +12,7 @@ def _safe_audit_state(value):
         key: field_value
         for key, field_value in value.items()
         if key in _SAFE_AUDIT_KEYS
-        and isinstance(field_value, (str, bool))
+        and isinstance(field_value, (str, bool, int))
         and len(str(field_value)) <= 128
     }
 

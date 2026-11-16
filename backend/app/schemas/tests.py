@@ -163,6 +163,7 @@ class SessionQuestionState(BaseModel):
 
 
 class SessionQuestion(BaseModel):
+    statement_blocks: list[Any] = Field(default_factory=list)
     attempt_question_id: str
     question_id: int
     section_id: str
@@ -220,6 +221,11 @@ class ResultSection(BaseModel):
 
 
 class AttemptResultResponse(BaseModel):
+    scoring_version: str = "mcq-index-v1"
+    attempted_count: int = 0
+    total_questions: int = 0
+    accuracy_percentage: Decimal | None = None
+    correct_percentage: Decimal | None = None
     attempt_id: str
     test_id: str
     test_title: str
@@ -237,6 +243,8 @@ class AttemptResultResponse(BaseModel):
 
 
 class AttemptReviewQuestion(BaseModel):
+    statement_blocks: list[Any] = Field(default_factory=list)
+    explanation_blocks: list[Any] = Field(default_factory=list)
     display_order: int = Field(ge=0)
     section_title: str
     question: str
@@ -262,6 +270,7 @@ class StudentAttemptSummary(BaseModel):
     test_title: str
     status: Literal["in_progress", "submitted", "expired", "terminated"]
     started_at: datetime
+    deadline_at: datetime | None = None
     submitted_at: datetime | None
     score: Decimal | None = None
     maximum_score: Decimal | None = None

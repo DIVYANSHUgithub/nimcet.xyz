@@ -1,6 +1,7 @@
 import { ArrowRight, Bookmark } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Badge from '../ui/Badge'
+import RichContent from '../RichContent'
 import { QuestionMedia, QuestionOptionContent } from '../ui/QuestionMedia'
 
 export default function QuestionCard({ question, index, onBookmark }) {
@@ -17,7 +18,7 @@ export default function QuestionCard({ question, index, onBookmark }) {
         <Badge>{difficulty || 'Difficulty not provided'}</Badge>
       </div>
       <div className="mb-4 break-words text-[15px] font-medium leading-7 text-ink-heading">
-        <QuestionMedia text={prompt} imageUrl={questionImageUrl} />
+        {question.statementBlocks?.length ? <RichContent blocks={question.statementBlocks} /> : <QuestionMedia text={prompt} imageUrl={questionImageUrl} />}
       </div>
       {options.length > 0 && (
         <ol className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="Answer options">

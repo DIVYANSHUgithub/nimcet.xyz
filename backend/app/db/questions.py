@@ -32,7 +32,7 @@ def _normalize_search(value: str | None) -> str | None:
     return normalized or None
 
 
-def _where_clause(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+def _where_clause(filters: dict[str, Any], rich_content: bool = False) -> tuple[str, dict[str, Any]]:
     conditions = ["q.status = 'published'"]
     params: dict[str, Any] = {}
 
@@ -43,7 +43,8 @@ def _where_clause(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     ):
         value = filters.get(key)
         if value:
-            conditions.append(f"{column} = :{key}")
+            if not rich_content or key == "subject":
+                conditions.append(f"{column} = :{key}")
             params[key] = value
 
     topic = _normalize_search(filters.get("topic"))
@@ -55,14 +56,31 @@ def _where_clause(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     if difficulty == "unspecified":
         conditions.append("q.difficulty IS NULL")
     elif difficulty:
-        conditions.append("q.difficulty = :difficulty")
+        conditions.append("lower(q.difficulty) = lower(:difficulty)")
         params["difficulty"] = difficulty
 
     year = filters.get("year")
     if year is not None:
-        conditions.append("q.exam_year = :year")
+        if not rich_content:
+            conditions.append("q.exam_year = :year")
         params["year"] = year
 
+    if filters.get('subtopic_id'):
+        conditions.append('q.subtopic_id = :subtopic_id' if rich_content else 'false')
+        params['subtopic_id'] = filters['subtopic_id']
+    if rich_content:
+        metadata = [(key, legacy, occurrence) for key, legacy, occurrence in
+                    [('exam','q.exam','o.exam'), ('section','q.section','o.section'), ('year','q.exam_year','o.year')]
+                    if key in params]
+        occurrence = 'EXISTS (SELECT 1 FROM public.question_occurrences o WHERE o.question_id=q.id'
+        occurrence += ''.join(f' AND {column}=:{key}' for key, _, column in metadata) + ')'
+        if filters.get('pyq'):
+            conditions.append(occurrence)
+        elif metadata:
+            legacy = ' AND '.join(f'{column}=:{key}' for key,column,_ in metadata)
+            conditions.append(f'(({legacy}) OR {occurrence})')
+    elif filters.get('pyq'):
+        conditions.append('false')
     question_type = filters.get("question_type")
     if question_type == "MCQ":
         conditions.append("jsonb_typeof(q.options) = 'array'")
@@ -85,8 +103,10 @@ def _where_clause(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 class QuestionsRepository:
     """Read-only access to the existing legacy questions table."""
 
-    def __init__(self, database: Database):
+    def __init__(self, database: Database, rich_content: bool = False):
         self.database = database
+        self.rich_content = rich_content
+        self.columns = QUESTION_COLUMNS + (", q.content_document, q.revision" if rich_content else "")
 
     def list_page(
         self,
@@ -96,7 +116,7 @@ class QuestionsRepository:
         filters: dict[str, Any],
         sort: str,
     ) -> tuple[list[dict[str, Any]], int, int]:
-        where, params = _where_clause(filters)
+        where, params = _where_clause(filters, self.rich_content)
         count_sql = text(f"SELECT count(*) FROM public.questions AS q WHERE {where}")
         order_sql = (
             "q.question_number ASC NULLS LAST, q.id ASC"
@@ -110,7 +130,7 @@ class QuestionsRepository:
             actual_page = min(page, last_page)
             rows = connection.execute(
                 text(
-                    f"SELECT {QUESTION_COLUMNS} "
+                    f"SELECT {self.columns} "
                     f"FROM public.questions AS q WHERE {where} "
                     f"ORDER BY {order_sql} LIMIT :limit OFFSET :offset"
                 ),
@@ -128,7 +148,7 @@ class QuestionsRepository:
         with self.database.read_only_transaction() as connection:
             row = connection.execute(
                 text(
-                    f"SELECT {QUESTION_COLUMNS} "
+                    f"SELECT {self.columns} "
                     "FROM public.questions AS q "
                     # index, so replace it with a typed comparison after verification.
                     "WHERE q.status = 'published' AND q.id = :question_id "

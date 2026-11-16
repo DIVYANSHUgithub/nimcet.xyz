@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 
 VerificationState = Literal["unverified", "verified", "needs_review"]
@@ -77,3 +77,29 @@ class PYQModeRequest(BaseModel):
     scored: bool = True
     shuffle_questions: bool = False
     shuffle_options: bool = False
+
+
+class PaperSectionBlueprint(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    code: str = Field(min_length=1,max_length=80)
+    question_count: int = Field(ge=1,le=1000)
+    marks: Decimal = Field(gt=0,max_digits=8,decimal_places=3)
+    negative_marks: Decimal = Field(ge=0,max_digits=8,decimal_places=3)
+
+
+class PYQApprovalRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    paper: PYQPaperMetadata
+    sections: list[PaperSectionBlueprint] = Field(min_length=1,max_length=100)
+
+    @model_validator(mode='after')
+    def complete_blueprint(self):
+        if len({s.code.casefold() for s in self.sections}) != len(self.sections):
+            raise ValueError('Section codes must be unique.')
+        if self.paper.duration_seconds is None or self.paper.source_verification!='verified' or self.paper.answer_key_verification!='verified':
+            raise ValueError('A verified paper, verified answer key and duration are required.')
+        if not self.paper.source_citation and self.paper.source_url is None:
+            raise ValueError('Source provenance is required.')
+        if self.paper.state != 'draft':
+            raise ValueError('Only draft metadata can be approved.')
+        return self

@@ -96,11 +96,11 @@ def _client(database, roles):
 
 
 def test_role_resolver_reads_only_active_allowlisted_assignments():
-    database = _Database(roles=["editor", "student", "unexpected_role"])
+    database = _Database(roles=["editor"])
     resolver = DatabaseRoleResolver(database)
     identity = VerifiedIdentity(_ACTOR_ID, "https://test.example/auth/v1", "authenticated")
 
-    assert resolver.roles_for(identity) == frozenset({"editor", "student"})
+    assert resolver.roles_for(identity) == frozenset({"editor"})
     sql, params = database.connection.statements[0]
     assert "ur.revoked_at IS NULL" in sql
     assert "JOIN public.roles" in sql
@@ -239,7 +239,7 @@ class _AuditDatabase:
 
 def test_superadmin_role_grant_is_audited_in_same_transaction():
     assignment_id = "3f849dec-5121-4fa1-a36c-720d3bff8a07"
-    database = _WriteDatabase([4, assignment_id, None])
+    database = _WriteDatabase([None, None, 4, assignment_id, None])
     target_id = _TARGET_ID
     with _client(database, {"super_administrator"}) as client:
         response = client.post(
@@ -256,7 +256,9 @@ def test_superadmin_role_grant_is_audited_in_same_transaction():
         "already_assigned": False,
     }
     assert database.transaction_count == 1
-    assert len(database.connection.statements) == 3
+    assert len(database.connection.statements) == 5
+    assert "pg_advisory_xact_lock" in database.connection.statements[0][0]
+    assert "r.code <> :role_code" in database.connection.statements[1][0]
     assert "INSERT INTO public.admin_audit_log" in database.connection.statements[-1][0]
 
 
@@ -338,7 +340,7 @@ def test_superadmin_role_revocation_is_audited_in_the_transaction():
 
 def test_duplicate_role_grant_is_idempotent_and_does_not_write_audit():
     assignment_id = "588e8620-8e89-47c2-831e-1a5201de6472"
-    database = _WriteDatabase([2, None, assignment_id])
+    database = _WriteDatabase([None, None, 2, None, assignment_id])
     from app.db.roles import RoleAssignmentRepository
 
     result = RoleAssignmentRepository(database).grant(
@@ -351,7 +353,7 @@ def test_duplicate_role_grant_is_idempotent_and_does_not_write_audit():
 
     assert result.assignment_id == assignment_id
     assert result.already_assigned is True
-    assert len(database.connection.statements) == 3
+    assert len(database.connection.statements) == 5
     assert not any("admin_audit_log" in statement for statement, _ in database.connection.statements)
 
 

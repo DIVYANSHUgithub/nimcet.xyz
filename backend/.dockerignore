@@ -1,0 +1,12 @@
+*
+!requirements-production.txt
+!app/
+!app/**
+!scripts/
+!scripts/serve.py
+!scripts/check_deployment.py
+!scripts/finalize_expired_attempts.py
+!certs/
+!certs/supabase-ca.crt
+**/__pycache__
+**/*.pyc

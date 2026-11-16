@@ -7,11 +7,15 @@ from sqlalchemy import text
 from app.core.security import RoleResolver, VerifiedIdentity
 from app.db.database import Database, DatabaseUnavailable
 
-ALLOWED_ROLES = frozenset({"student", "editor", "administrator", "super_administrator"})
+ALLOWED_ROLES = frozenset({"student", "editor", "test_manager", "administrator", "super_administrator"})
 
 
 class RoleStorageUnavailable(Exception):
     """Trusted role assignments could not be checked; authorization must stop."""
+
+
+class AccountSuspended(Exception):
+    pass
 
 
 class RoleNotFound(Exception):
@@ -19,6 +23,10 @@ class RoleNotFound(Exception):
 
 
 class RoleAssignmentNotFound(Exception):
+    pass
+
+
+class PrimaryRoleConflict(Exception):
     pass
 
 
@@ -37,16 +45,20 @@ class RoleAssignmentResult:
 class DatabaseRoleResolver(RoleResolver):
     """Resolve permissions only from active database assignments."""
 
-    def __init__(self, database: Database):
+    def __init__(self, database: Database, check_account_status: bool = False):
         self.database = database
+        self.check_account_status = check_account_status
 
     def roles_for(self, identity: VerifiedIdentity) -> frozenset[str]:
         try:
             user_id = UUID(identity.subject)
         except ValueError:
-            return frozenset({"student"})
+            raise RoleStorageUnavailable from None
         try:
             with self.database.read_only_transaction() as connection:
+                if self.check_account_status:
+                    suspended=connection.execute(text("SELECT 1 FROM public.account_status WHERE user_id=:id AND status='suspended' AND(suspended_until IS NULL OR suspended_until>now())"),{'id':user_id}).scalar_one_or_none()
+                    if suspended is not None: raise AccountSuspended
                 rows = connection.execute(
                     text(
                         "SELECT r.code "
@@ -61,8 +73,11 @@ class DatabaseRoleResolver(RoleResolver):
             # assignments. Callers must return unavailable instead of masking it.
             raise RoleStorageUnavailable from None
 
-        roles = frozenset(role for role in rows if role in ALLOWED_ROLES)
-        return roles or frozenset({"student"})
+        # Never combine privileges from conflicting primary assignments or hide
+        # unknown role codes by silently treating the account as a student.
+        if len(rows) > 1 or any(role not in ALLOWED_ROLES for role in rows):
+            raise RoleStorageUnavailable
+        return frozenset(rows) or frozenset({"student"})
 
 
 class RoleAssignmentRepository:
@@ -83,6 +98,23 @@ class RoleAssignmentRepository:
         if role_code not in ALLOWED_ROLES:
             raise RoleNotFound
         with self.database.transaction() as connection:
+            # Serialize grants even when this account has no assignment row yet.
+            # A database uniqueness constraint remains necessary for other writers.
+            connection.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:user_id, 0))"),
+                {"user_id": str(user_id)},
+            )
+            conflicting = connection.execute(
+                text(
+                    "SELECT 1 FROM public.user_roles AS ur "
+                    "JOIN public.roles AS r ON r.id = ur.role_id "
+                    "WHERE ur.user_id = :user_id AND ur.revoked_at IS NULL "
+                    "AND r.code <> :role_code LIMIT 1"
+                ),
+                {"user_id": user_id, "role_code": role_code},
+            ).scalar_one_or_none()
+            if conflicting is not None:
+                raise PrimaryRoleConflict
             role_id = connection.execute(
                 text(
                     "SELECT id FROM public.roles WHERE code = :role_code"

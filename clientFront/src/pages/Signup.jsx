@@ -10,11 +10,13 @@ export default function Signup() {
 
   const handleSignup = async ({ fullName, email, username, password }) => {
     if (!supabase) return { error: getSupabaseConfigError().message }
+    const metadata = { full_name: fullName }
+    if (username) metadata.username = username
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: fullName, username },
+        data: metadata,
         emailRedirectTo: `${window.location.origin}/login`,
       },
     })

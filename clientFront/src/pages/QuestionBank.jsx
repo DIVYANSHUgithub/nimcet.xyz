@@ -12,6 +12,7 @@ import QuestionList from '../components/questions/QuestionList'
 import Pagination from '../components/questions/Pagination'
 import Container from '../components/ui/Container'
 import Button from '../components/ui/Button'
+import { backendGet } from '../lib/backendApi'
 import { getQuestions, QUESTION_PAGE_SIZE } from '../lib/questionsApi'
 import { normalizeQuestion } from '../utils/normalizeQuestion'
 import { useQuestionFacets } from '../hooks/useQuestionFacets'
@@ -23,6 +24,16 @@ export default function QuestionBank() {
   const subjectParam = searchParams.get('subject')
   const subject = subjects.some((item) => item.id === subjectParam) ? subjectParam : subjects[0]?.id || 'all'
   const topic = searchParams.get('topic') || ''
+  const subtopicId = searchParams.get('subtopic') || ''
+  const exam = searchParams.get('exam') || ''
+  const section = searchParams.get('section') || ''
+  const pyq = searchParams.get('pyq') === 'true'
+  const [catalog, setCatalog] = useState({ subtopics: [] })
+  useEffect(() => {
+    const controller = new AbortController()
+    backendGet('catalog', { signal: controller.signal }).then(setCatalog).catch(() => {})
+    return () => controller.abort()
+  }, [])
   const [questions, setQuestions] = useState([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -55,7 +66,7 @@ export default function QuestionBank() {
       page,
       pageSize: QUESTION_PAGE_SIZE,
       signal: controller.signal,
-      filters: { subject, topic, difficulty, questionType, year, search: debouncedSearch, sort },
+      filters: { subject, topic, subtopicId, exam, section, pyq, difficulty, questionType, year, search: debouncedSearch, sort },
     })
       .then((result) => {
         setQuestions(result.data.map(normalizeQuestion))
@@ -72,7 +83,7 @@ export default function QuestionBank() {
       })
 
     return () => controller.abort()
-  }, [page, subject, topic, difficulty, questionType, year, debouncedSearch, sort, requestRevision])
+  }, [page, subject, topic, subtopicId, exam, section, pyq, difficulty, questionType, year, debouncedSearch, sort, requestRevision])
 
   const patchQuery = (nextValues, replace = false) => {
     const params = new URLSearchParams(searchParams)
@@ -114,7 +125,7 @@ export default function QuestionBank() {
     setQuestionType('')
     setYear('')
     setSort('newest')
-    patchQuery({ subject: '', topic: '' }, true)
+    patchQuery({ subject: '', topic: '', subtopic: '', exam: '', section: '', pyq: '' }, true)
   }
 
   const handleQuickLink = async (id) => {
@@ -142,7 +153,7 @@ export default function QuestionBank() {
       return
     }
     if (id === 'pyqs') {
-      setToast('Previous-year questions are unavailable in the published dataset; the available exam year is 2026.')
+      patchQuery({ pyq: 'true' })
       return
     }
     if (id === 'important') {
@@ -176,6 +187,12 @@ export default function QuestionBank() {
 
         <section className="order-1 min-w-0 min-[1100px]:order-2 min-[1100px]:col-start-2 min-[1100px]:row-start-1" aria-label="Question list">
           <QuestionBankHeader search={search} onSearchChange={handleSearchChange} />
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <label>Examination<input className="w-full rounded border border-line p-2" value={exam} onChange={e => patchQuery({ exam: e.target.value }, true)} /></label>
+            <label>Section<input className="w-full rounded border border-line p-2" value={section} onChange={e => patchQuery({ section: e.target.value }, true)} /></label>
+            <label>Subtopic<select className="w-full rounded border border-line p-2" value={subtopicId} onChange={e => patchQuery({ subtopic: e.target.value })}><option value="">All subtopics</option>{catalog.subtopics.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+            <label><input type="checkbox" checked={pyq} onChange={e => patchQuery({ pyq: e.target.checked ? 'true' : '' })} /> Previous-year questions only</label>
+          </div>
           <QuestionFilters
             subjects={subjects}
             subject={subject}

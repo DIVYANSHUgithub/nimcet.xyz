@@ -8,6 +8,7 @@ from app.db.admin import AdminRepository
 from app.db.database import DatabaseUnavailable
 from app.db.roles import (
     LastSuperAdministrator,
+    PrimaryRoleConflict,
     RoleAssignmentNotFound,
     RoleAssignmentRepository,
     RoleNotFound,
@@ -21,7 +22,7 @@ from app.schemas.admin import (
 )
 
 router = APIRouter()
-ADMIN_ROLES = ("editor", "administrator", "super_administrator")
+ADMIN_ROLES = ("editor", "test_manager", "administrator", "super_administrator")
 
 
 def _is_self(principal: Principal, user_id: UUID) -> bool:
@@ -81,6 +82,8 @@ def grant_role(
     request: Request,
     principal: Principal = Depends(require_roles("super_administrator")),
 ) -> RoleAssignmentResponse:
+    if request.app.state.settings.admin_workflows_enabled:
+        raise HTTPException(409,detail={'code':'primary_role_api_required','message':'Use the atomic primary-role operation.'})
     if _is_self(principal, user_id):
         raise HTTPException(
             status_code=409,
@@ -94,6 +97,11 @@ def grant_role(
             reason=body.reason,
             request_id=request.state.request_id,
         )
+    except PrimaryRoleConflict:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "primary_role_conflict", "message": "Revoke the existing primary role before assigning a different role."},
+        ) from None
     except RoleNotFound:
         raise HTTPException(
             status_code=404,
@@ -115,6 +123,8 @@ def revoke_role(
     request: Request,
     principal: Principal = Depends(require_roles("super_administrator")),
 ) -> RoleAssignmentResponse:
+    if request.app.state.settings.admin_workflows_enabled:
+        raise HTTPException(409,detail={'code':'primary_role_api_required','message':'Use the atomic primary-role operation.'})
     if _is_self(principal, user_id):
         raise HTTPException(
             status_code=409,

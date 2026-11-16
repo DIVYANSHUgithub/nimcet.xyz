@@ -20,7 +20,14 @@ const KIND_LABELS = {
 function friendlyError(error) {
   if (error instanceof ApiRequestError) {
     if (error.status === 401) return 'Sign in to view and take tests.'
-    if (error.status === 403) return 'Test access is not enabled for this account yet.'
+    if (error.code === 'account_suspended') return 'Application access is suspended. Contact an administrator.'
+    if (error.status === 403) {
+      if (error.code === 'attempt_limit_reached') return 'You have used all attempts allowed for this test.'
+      if (error.code === 'test_closed') return 'This test is closed.'
+      if (error.code === 'test_not_started') return 'This test is not open yet.'
+      if (error.code === 'test_has_no_questions') return 'This test has no questions available. Please contact the test administrator.'
+      return 'Test access is not enabled for this account yet.'
+    }
     if (error.status === 404 && error.code === 'http_error') return 'The test service is not enabled for this deployment yet. Please try again later.'
     if (error.status === 404) return 'This test is no longer available.'
     if (error.status === 503) return 'The test service is temporarily unavailable. Please retry in a moment.'
@@ -46,19 +53,27 @@ function scheduleState(test, now) {
 }
 
 export default function TestCatalog() {
+  const { user } = useAuth()
+  return <TestCatalogPage key={user?.id ?? 'anonymous'} />
+}
+
+function TestCatalogPage() {
   const { user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [response, setResponse] = useState({ items: [], page: 1, page_size: 12, total: 0, has_more: false })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [startError, setStartError] = useState('')
   const [startingId, setStartingId] = useState('')
   const [filter, setFilter] = useState('all')
   const [revision, setRevision] = useState(0)
 
   const load = useCallback((signal) => {
     setLoading(true)
+    setError('')
     listTests({ page: response.page, pageSize: response.page_size, signal })
       .then((data) => {
+        if (signal?.aborted) return
         setResponse((previous) => data.page > 1
           ? { ...data, items: [...previous.items, ...data.items] }
           : data)
@@ -84,8 +99,10 @@ export default function TestCatalog() {
 
   const categories = useMemo(() => ['all', ...new Set(response.items.map((item) => item.kind))], [response.items])
   const visibleTests = filter === 'all' ? response.items : response.items.filter((item) => item.kind === filter)
+  const displayedError = startError || error
 
   function refreshTests() {
+    setStartError('')
     setResponse((current) => ({ ...current, page: 1, items: [] }))
     setRevision((value) => value + 1)
   }
@@ -96,6 +113,7 @@ export default function TestCatalog() {
       return
     }
     setStartingId(test.id)
+    setStartError('')
     setError('')
     try {
       const session = test.active_attempt_id
@@ -103,7 +121,7 @@ export default function TestCatalog() {
         : await startTest(test.id)
       navigate(`/attempts/${session.attempt_id}`)
     } catch (reason) {
-      setError(friendlyError(reason))
+      setStartError(friendlyError(reason))
       setStartingId('')
       setRevision((value) => value + 1)
     }
@@ -147,13 +165,13 @@ export default function TestCatalog() {
           <button type="button" onClick={refreshTests} className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-sm font-medium text-ink-muted hover:bg-canvas-muted hover:text-ink-heading" aria-label="Refresh tests"><RefreshCw size={15} /> Refresh</button>
         </div>
 
-        {error && <div className="mt-5 flex flex-col gap-3 rounded-xl border border-danger-border bg-danger-bg p-4 text-sm text-danger sm:flex-row sm:items-center sm:justify-between" role="alert"><span>{error}</span><Button size="sm" variant="secondary" onClick={refreshTests}>Try again</Button></div>}
+        {displayedError && <div className="mt-5 flex flex-col gap-3 rounded-xl border border-danger-border bg-danger-bg p-4 text-sm text-danger sm:flex-row sm:items-center sm:justify-between" role="alert"><span>{displayedError}</span><Button size="sm" variant="secondary" onClick={refreshTests}>Try again</Button></div>}
 
         {!user && !authLoading ? (
           <div className="mt-6 rounded-2xl border border-dashed border-line-strong bg-canvas-muted px-6 py-14 text-center"><FileQuestion size={30} className="mx-auto text-ink-muted" /><h2 className="mt-4 text-lg font-semibold text-ink-heading">Sign in to see available tests</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-ink-muted">Published tests and active attempts are available to your signed-in account.</p></div>
         ) : loading ? (
           <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3" aria-label="Loading tests" aria-busy="true">{Array.from({ length: 6 }, (_, index) => <div key={index} className="h-60 animate-pulse rounded-2xl border border-line bg-canvas-muted" />)}</div>
-        ) : visibleTests.length ? (
+        ) : error ? null : visibleTests.length ? (
           <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {visibleTests.map((test) => {
               const state = scheduleState(test, new Date())
@@ -162,7 +180,7 @@ export default function TestCatalog() {
                 <article key={test.id} className="flex min-h-64 flex-col rounded-2xl border border-line bg-surface p-5 shadow-card transition-shadow hover:shadow-raised">
                   <div className="flex items-start justify-between gap-3"><span className="rounded-full bg-canvas-subtle px-3 py-1 text-xs font-semibold text-ink-muted">{KIND_LABELS[test.kind] || test.kind}</span><span className="text-xs font-medium text-ink-muted">{test.examination_code}</span></div>
                   <h2 className="mt-4 text-lg font-semibold leading-6 text-ink-heading">{test.title}</h2>
-                  <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-ink-muted"><span className="inline-flex items-center gap-1.5"><FileQuestion size={15} />{test.question_count} questions</span><span className="inline-flex items-center gap-1.5"><Clock3 size={15} />{formatDuration(test.duration_seconds)}</span></div>
+                  <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-ink-muted"><span className="inline-flex items-center gap-1.5"><FileQuestion size={15} />{test.question_count} question{test.question_count === 1 ? '' : 's'}</span><span className="inline-flex items-center gap-1.5"><Clock3 size={15} />{formatDuration(test.duration_seconds)}</span></div>
                   <div className="mt-auto flex items-center justify-between gap-3 border-t border-line pt-5 mt-5"><span className={`text-xs font-medium ${state.disabled ? 'text-ink-muted' : state.resume ? 'text-accent' : 'text-success'}`}>{state.resume ? 'Attempt in progress' : state.disabled ? state.label : `${Math.max(0, test.attempt_limit - test.attempts_used)} attempt${test.attempt_limit - test.attempts_used === 1 ? '' : 's'} available`}</span><Button size="sm" disabled={state.disabled || startingId === test.id} onClick={() => handleStart(test)}>{actionLabel} <ArrowRight size={15} /></Button></div>
                 </article>
               )

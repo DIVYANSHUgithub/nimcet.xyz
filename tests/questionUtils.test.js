@@ -106,10 +106,11 @@ test('validates login and signup inputs before calling Supabase', () => {
   const signupErrors = validateSignup({
     fullName: 'Learner',
     email: 'learner@example.com',
-    username: 'learner1',
+    username: '',
     password: 'short',
     confirmPassword: 'different',
   })
   assert.equal(signupErrors.password, 'Password must be at least 6 characters.')
   assert.equal(signupErrors.confirmPassword, 'Passwords do not match.')
+  assert.equal(signupErrors.username, undefined)
 })

@@ -15,8 +15,21 @@ class TestAuthoringRepository:
 
     __test__ = False
 
-    def __init__(self, database: Database):
+    def __init__(self, database: Database, phase5_enabled: bool = False, workflows_enabled: bool = False):
         self.database = database
+        self.phase5_enabled = phase5_enabled
+        self.workflows_enabled = workflows_enabled
+
+    def list_tests(self, *, page: int, search: str) -> list[dict]:
+        with self.database.read_only_transaction() as connection:
+            return [dict(row) for row in connection.execute(text(
+                'SELECT t.id,t.title,t.examination_code,t.kind,t.status,t.visibility,'
+                'v.id AS version_id,v.version_number,v.status AS version_status,v.workflow_state '
+                "FROM public.tests t LEFT JOIN LATERAL (SELECT id,version_number,status,to_jsonb(tv)->>'workflow_state' AS workflow_state FROM public.test_versions tv "
+                'WHERE test_id=t.id ORDER BY version_number DESC LIMIT 1) v ON true '
+                "WHERE t.status<>'archived' AND position(lower(:search) in lower(t.title))>0 "
+                'ORDER BY t.created_at DESC,t.id LIMIT 30 OFFSET :offset'
+            ), {'search':search,'offset':(page-1)*30}).mappings().all()]
 
     def create_draft(self, *, actor_id: str, draft: CreateTestDraft, request_id: str) -> dict:
         actor = UUID(actor_id)
@@ -98,6 +111,8 @@ class TestAuthoringRepository:
                     "review_policy": json.dumps(version.review_policy.model_dump(mode="json")),
                 },
             )
+            if self.workflows_enabled:
+                connection.execute(text('UPDATE public.test_versions SET created_by=:actor WHERE id=:id'),{'actor':actor,'id':version_id})
             for section in version.sections:
                 section_id = uuid4()
                 connection.execute(
@@ -117,12 +132,14 @@ class TestAuthoringRepository:
                 for question in section.questions:
                     source = connection.execute(
                         text(
-                            "SELECT id,question,options,correct_option,explanation "
-                            "FROM public.questions WHERE id=:question_id AND exam=:exam AND status='published'"
+                            "SELECT id,question,options,correct_option,explanation,to_jsonb(q)->'content_document' AS content_document "
+                            "FROM public.questions q WHERE id=:question_id AND exam=:exam AND status='published'"
                         ),
                         {"question_id": question.question_id, "exam": test["examination_code"]},
                     ).mappings().first()
                     options = source["options"] if source is not None else None
+                    if source is not None and source.get('content_document') and not self.phase5_enabled:
+                        raise TestEngineForbidden('rich_snapshot_not_enabled')
                     if (
                         source is None
                         or not isinstance(options, list)
@@ -152,6 +169,13 @@ class TestAuthoringRepository:
                             "explanation": source["explanation"],
                         },
                     )
+                    if self.phase5_enabled and source.get('content_document'):
+                        doc=source['content_document']
+                        # The just-inserted draft snapshot is immutable after publication.
+                        connection.execute(text(
+                            'UPDATE public.test_questions SET question_blocks_snapshot=CAST(:statement AS jsonb),'
+                            'explanation_blocks_snapshot=CAST(:explanation AS jsonb) WHERE test_section_id=:section_id AND question_id=:question_id'
+                        ), dict(statement=json.dumps(doc['statement']),explanation=json.dumps(doc['explanation']),section_id=section_id,question_id=source['id']))
                     question_count += 1
             self._audit(
                 connection,
@@ -178,7 +202,7 @@ class TestAuthoringRepository:
         with self.database.transaction() as connection:
             row = connection.execute(
                 text(
-                    "SELECT t.id AS test_id,t.status AS test_status,v.id AS version_id,v.version_number,v.status "
+                    "SELECT t.id AS test_id,t.kind,t.examination_code,t.status AS test_status,v.id AS version_id,v.version_number,v.status,v.duration_seconds,v.shuffle_questions,v.shuffle_options,to_jsonb(v)->>'workflow_state' AS workflow_state "
                     "FROM public.tests AS t JOIN public.test_versions AS v ON v.test_id=t.id "
                     "WHERE t.id=:test_id AND v.id=:version_id FOR UPDATE OF t,v"
                 ),
@@ -186,6 +210,20 @@ class TestAuthoringRepository:
             ).mappings().first()
             if row is None or row["test_status"] == "archived" or row["status"] != "draft":
                 raise TestEngineForbidden("test_version_unavailable")
+            if self.workflows_enabled and row.get('workflow_state') != 'approved':
+                raise TestEngineForbidden('approval_required')
+            if row['kind']=='pyq':
+                if not self.phase5_enabled:
+                    raise TestEngineForbidden('pyq_approval_required')
+                from app.db.phase5 import validate_paper_version, paper_snapshot_digest, PAPER_QUESTIONS_SQL
+                from app.schemas.pyq import PYQApprovalRequest
+                approved=connection.execute(text('SELECT metadata,snapshot_digest FROM public.pyq_papers WHERE test_version_id=:id'), {'id':version_uuid}).mappings().first()
+                if approved is None:
+                    raise TestEngineForbidden('pyq_approval_required')
+                mapped=connection.execute(text(PAPER_QUESTIONS_SQL),{'id':version_uuid}).mappings().all()
+                validate_paper_version(dict(row),mapped,PYQApprovalRequest.model_validate(approved['metadata']))
+                if approved['snapshot_digest'] != paper_snapshot_digest(row,mapped):
+                    raise TestEngineForbidden('pyq_approval_stale')
             sections = connection.execute(
                 text(
                     "SELECT s.id,s.default_marks,s.default_negative_marks,count(q.id) AS question_count "

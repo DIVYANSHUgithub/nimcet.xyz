@@ -1,4 +1,5 @@
 from typing import Literal
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
@@ -9,8 +10,22 @@ from app.schemas.questions import QuestionFacet, QuestionFacets, QuestionItem, Q
 router = APIRouter()
 
 
+def public_item(item):
+    item = dict(item)
+    doc = item.get('content_document')
+    if doc:
+        item['statement_blocks'] = doc['statement']
+        item['option_ids'] = [o['id'] for o in doc['options']]
+        item['options'] = [{'id':o['id'],'blocks':o['blocks']} for o in doc['options']]
+    else:
+        item['option_ids'] = [f'option-{i}' for i in range(len(item.get('options') or []))]
+    # Response model deliberately has no answer/explanation/document fields.
+    return QuestionItem.model_validate(item)
+
+
+
 def _repository(request: Request) -> QuestionsRepository:
-    return QuestionsRepository(request.app.state.database)
+    return QuestionsRepository(request.app.state.database, rich_content=True) if request.app.state.settings.question_authoring_enabled else QuestionsRepository(request.app.state.database)
 
 
 def _database_unavailable() -> HTTPException:
@@ -48,6 +63,8 @@ def list_questions(
     year: int | None = Query(default=None, ge=1900, le=2200),
     question_type: Literal["MCQ", "Unspecified"] | None = Query(default=None, alias="type"),
     search: str | None = Query(default=None, max_length=120),
+    subtopic_id: UUID | None = None,
+    pyq: bool = False,
     sort: Literal["question-number", "recent"] = Query(default="question-number"),
 ) -> QuestionPage:
     filters = {
@@ -60,6 +77,10 @@ def list_questions(
         "question_type": question_type,
         "search": search,
     }
+    if subtopic_id is not None:
+        filters['subtopic_id'] = subtopic_id
+    if pyq:
+        filters['pyq'] = True
     try:
         items, total, actual_page = _repository(request).list_page(
             page=page,
@@ -71,7 +92,7 @@ def list_questions(
         raise _database_unavailable() from None
 
     return QuestionPage(
-        items=[QuestionItem.model_validate(item) for item in items],
+        items=[public_item(item) for item in items],
         page=actual_page,
         page_size=page_size,
         total=total,
@@ -95,4 +116,4 @@ def get_question(question_id: str, request: Request) -> QuestionItem:
             status_code=404,
             detail={"code": "question_not_found", "message": "The published question was not found."},
         )
-    return QuestionItem.model_validate(item)
+    return public_item(item)

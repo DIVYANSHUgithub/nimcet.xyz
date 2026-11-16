@@ -7,6 +7,9 @@ import Button from '../components/ui/Button'
 import { useAuth } from '../context/useAuth'
 import { ApiRequestError } from '../lib/backendApi'
 import { getMyAttempts, getMyTestDashboard } from '../lib/testsApi'
+import PerformanceSummary from '../components/PerformanceSummary'
+import { studentFeatures } from '../lib/studentFeatures'
+import { attemptElapsedSeconds } from '../lib/testHistory'
 
 const EMPTY_HISTORY = { items: [], page: 1, page_size: 20, total: 0, has_more: false }
 
@@ -15,6 +18,11 @@ function scoreLabel(score, maximum) {
 }
 
 export default function StudentResults() {
+  const { user } = useAuth()
+  return <StudentResultsPage key={user?.id ?? 'anonymous'} />
+}
+
+function StudentResultsPage() {
   const { user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [dashboard, setDashboard] = useState(null)
@@ -85,6 +93,7 @@ export default function StudentResults() {
               <Metric icon={Trophy} label="Best" value={dashboard?.best_percentage == null ? '—' : `${Number(dashboard.best_percentage).toFixed(1)}%`} note="Highest released percentage" />
             </section>
 
+            {studentFeatures.detailedAnalytics && <PerformanceSummary key={revision} />}
             <section className="mt-9" aria-labelledby="attempt-history-title">
               <div className="mb-4 flex items-center justify-between"><h2 id="attempt-history-title" className="text-xl font-bold text-ink-heading">Attempt history</h2><span className="text-sm text-ink-muted">{history.total} total</span></div>
               {history.items.length === 0 ? (
@@ -92,7 +101,7 @@ export default function StudentResults() {
               ) : (
                 <div className="overflow-hidden rounded-2xl border border-line bg-surface"><ul className="divide-y divide-line">
                   {history.items.map((attempt) => <li key={attempt.attempt_id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-semibold text-ink-heading">{attempt.test_title}</h3><span className={`rounded-full px-2.5 py-1 text-[0.6875rem] font-semibold ${attempt.status === 'in_progress' ? 'bg-info-bg text-info' : 'bg-canvas-subtle text-ink-muted'}`}>{attempt.status === 'in_progress' ? 'In progress' : attempt.status === 'expired' ? 'Timer submitted' : attempt.status}</span></div><div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted"><span>Started {new Date(attempt.started_at).toLocaleString()}</span><span>{attempt.submitted_at ? `${Math.max(0, Math.floor((new Date(attempt.submitted_at) - new Date(attempt.started_at)) / 60000))} min` : 'In progress'}</span>{attempt.review_released && <span className="inline-flex items-center gap-1"><FileCheck2 size={12} />Review available</span>}</div></div>
+                    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-semibold text-ink-heading">{attempt.test_title}</h3><span className={`rounded-full px-2.5 py-1 text-[0.6875rem] font-semibold ${attempt.status === 'in_progress' ? 'bg-info-bg text-info' : 'bg-canvas-subtle text-ink-muted'}`}>{attempt.status === 'in_progress' ? 'In progress' : attempt.status === 'expired' ? 'Timer submitted' : attempt.status}</span></div><div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted"><span>Started {new Date(attempt.started_at).toLocaleString()}</span><span>{attempt.submitted_at ? `${Math.floor((attemptElapsedSeconds(attempt) ?? 0) / 60)} min` : 'In progress'}</span>{attempt.review_released && <span className="inline-flex items-center gap-1"><FileCheck2 size={12} />Review available</span>}</div></div>
                     <div className="flex shrink-0 items-center justify-between gap-4 sm:justify-end"><div className="text-right"><p className="font-bold tabular-nums text-ink-heading">{attempt.result_released ? scoreLabel(attempt.score, attempt.maximum_score) : <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted"><LockKeyhole size={13} />Score pending</span>}</p>{attempt.result_released && <p className="mt-1 text-xs text-ink-muted">{Number(attempt.maximum_score) ? `${(Number(attempt.score) / Number(attempt.maximum_score) * 100).toFixed(1)}%` : ''}</p>}</div><Button size="sm" variant={attempt.status === 'in_progress' ? 'primary' : 'secondary'} onClick={() => navigate(attempt.status === 'in_progress' ? `/attempts/${attempt.attempt_id}` : `/attempts/${attempt.attempt_id}/result`)}>{attempt.status === 'in_progress' ? 'Resume' : 'View result'} <ArrowRight size={14} /></Button></div>
                   </li>)}
                 </ul></div>

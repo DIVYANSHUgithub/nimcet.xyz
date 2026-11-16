@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from uuid import UUID
 
 import pytest
 
@@ -17,7 +18,7 @@ from app.domain.test_engine import (
     validate_answer_write,
     validate_navigation,
 )
-from app.schemas.tests import CreateTestVersion, TestSectionDraft, TestQuestionDraft
+from app.schemas.tests import CreateTestVersion, TestSectionDraft, TestQuestionDraft, TestSession as SessionResponse
 
 
 NOW = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
@@ -122,6 +123,24 @@ def test_active_attempt_conflicts_and_schedule_boundaries_are_closed():
 def test_remaining_time_is_server_owned_and_never_negative():
     assert remaining_seconds(deadline_at=NOW + timedelta(seconds=4.9), server_time=NOW) == 4
     assert remaining_seconds(deadline_at=NOW - timedelta(seconds=1), server_time=NOW) == 0
+
+
+@pytest.mark.parametrize('status', ['in_progress', 'expired'])
+def test_database_uuid_session_passes_api_response_validation(status):
+    ids = {
+        'attempt_id': UUID('11111111-1111-4111-8111-111111111111'),
+        'test_id': UUID('22222222-2222-4222-8222-222222222222'),
+        'test_version_id': UUID('33333333-3333-4333-8333-333333333333'),
+    }
+    payload = session_projection(
+        attempt={**ids, 'status': status, 'started_at': NOW,
+                 'deadline_at': NOW + timedelta(minutes=1)},
+        questions=[_question()], answers={}, navigation={}, server_time=NOW,
+    )
+    response = SessionResponse.model_validate(payload).model_dump(mode='json')
+    for name, value in ids.items():
+        assert response[name] == str(value)
+    assert 'correct_option' not in response['questions'][0]
 
 
 def test_session_projection_freezes_order_and_omits_answer_key_fields():

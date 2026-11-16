@@ -41,9 +41,6 @@ export default function QuestionFilters({
         <FilterField label="Topic">
           <input className={controlClass} value={topic} onChange={(event) => onTopicChange(event.target.value)} placeholder="Any topic" />
         </FilterField>
-        <FilterField label="Chapter">
-          <span className="flex min-h-10 w-full items-center rounded-md border border-line bg-canvas-muted px-3 text-sm text-ink-muted" title="The published questions table does not have a chapter field." aria-label="Chapter filtering is not available">Not available</span>
-        </FilterField>
         <FilterField label="Difficulty">
           <select className={controlClass} value={difficulty} onChange={(event) => onDifficultyChange(event.target.value)}>
             <option value="">Any difficulty</option>
@@ -74,7 +71,7 @@ export default function QuestionFilters({
         </label>
       </div>
       <p className="mt-2 text-[11px] leading-snug text-ink-muted">
-        Chapter is not stored and difficulty is unspecified in the published question data.
+        Filter published questions by subject, topic, difficulty and year.
       </p>
     </section>
   )

@@ -27,7 +27,9 @@ test('backend GET adds filters, forwards the current bearer token, and omits coo
   assert.equal(request.url.searchParams.has('empty'), false)
   assert.equal(request.options.headers.Authorization, 'Bearer signed-access-token')
   assert.equal(request.options.credentials, 'omit')
-  assert.equal(request.options.signal, controller.signal)
+  assert.equal(request.options.signal.aborted, false)
+  controller.abort()
+  assert.equal(request.options.signal.aborted, true)
 })
 
 test('backend GET works anonymously when no Supabase session exists', async () => {
@@ -109,4 +111,42 @@ test('backend API rejects missing base URL and converts network failures to safe
     createBackendApi({ baseUrl: 'not-a-url' })('questions'),
     (error) => error.code === 'invalid_api_url',
   )
+})
+
+test('request timeout fails once without retrying mutations', async () => {
+  let calls = 0
+  const api = createBackendApi({ baseUrl: 'https://api.example.test/api/v1', getToken: async () => null, timeoutMs: 10,
+    fetchImpl: (_url, { signal }) => new Promise((_resolve, reject) => {
+      calls += 1
+      signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+    }),
+  })
+  await assert.rejects(api('attempts/example/submit', { method: 'POST', body: {} }), error => error.code === 'request_timeout' && error.status === 504)
+  assert.equal(calls, 1)
+})
+
+test('caller cancellation remains cancellation rather than a network error', async () => {
+  const controller = new AbortController()
+  const api = createBackendApi({ baseUrl: 'https://api.example.test/api/v1', getToken: async () => null,
+    fetchImpl: (_url, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+      controller.abort()
+    }),
+  })
+  await assert.rejects(api('questions', { signal: controller.signal }), error => error.name === 'AbortError')
+})
+
+test('binary media uses the same authenticated request boundary and returns blobs', async () => {
+  const file = new Blob(['synthetic image'], { type: 'image/png' })
+  let captured
+  const api = createBackendApi({ baseUrl: 'https://api.example.test/api/v1', getToken: async () => 'fixture-token',
+    fetchImpl: async (_url, options) => { captured = options; return { ok: true, status: 200, blob: async () => file } },
+  })
+  const result = await api('admin/media', { method: 'POST', rawBody: file, contentType: file.type, responseType: 'blob' })
+  assert.equal(result, file)
+  assert.equal(captured.body, file)
+  assert.equal(captured.headers['Content-Type'], 'image/png')
+  assert.equal(captured.headers.Authorization, 'Bearer fixture-token')
+  assert.equal(captured.credentials, 'omit')
+  await assert.rejects(api('admin/media', { body: {}, rawBody: file }), error => error.code === 'invalid_body')
 })

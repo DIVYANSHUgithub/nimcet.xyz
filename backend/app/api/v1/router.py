@@ -1,4 +1,7 @@
 from fastapi import APIRouter
+from app.api.v1.routes.content import router as content_router
+from app.api.v1.routes.phase5 import router as phase5_router
+from app.api.v1.routes.operations import router as operations_router
 
 from app.api.v1.routes.me import router as me_router
 from app.api.v1.routes.admin import router as admin_router
@@ -13,6 +16,9 @@ from app.api.v1.routes.test_authoring import router as test_authoring_router
 
 def create_api_router(test_engine_enabled: bool = True) -> APIRouter:
     api_router = APIRouter()
+    api_router.include_router(operations_router,prefix="/admin",tags=["admin operations"])
+    api_router.include_router(content_router, tags=["question content"])
+    api_router.include_router(phase5_router, tags=["results and PYQ"])
 
     api_router.include_router(me_router, prefix="/auth", tags=["auth"])
     api_router.include_router(admin_router, prefix="/admin", tags=["admin"])

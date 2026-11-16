@@ -1,6 +1,10 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import ConnectionStatus from './components/ConnectionStatus'
+import AppBoundary from './components/AppBoundary'
+import { RequireSession, RouteAccessibility } from './components/RouteAccess'
 import { AuthProvider } from './context/AuthContext'
+import { studentFeatures } from './lib/studentFeatures'
 
 const Home = lazy(() => import('./pages/Home'))
 const Login = lazy(() => import('./pages/Login'))
@@ -12,6 +16,7 @@ const TestCatalog = lazy(() => import('./pages/TestCatalog'))
 const TestAttempt = lazy(() => import('./pages/TestAttempt'))
 const AttemptResult = lazy(() => import('./pages/AttemptResult'))
 const StudentResults = lazy(() => import('./pages/StudentResults'))
+const PYQ = lazy(() => import('./pages/PYQ'))
 
 function NotFound() {
   return (
@@ -27,17 +32,20 @@ function NotFound() {
 
 function App() {
   return (
-    <BrowserRouter>
+    <AppBoundary><BrowserRouter>
       <AuthProvider>
+        <RouteAccessibility />
+        <ConnectionStatus />
         <Suspense fallback={<div className="grid min-h-svh place-items-center text-sm text-ink-muted" role="status">Loading page…</div>}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/questions" element={<QuestionBank />} />
             <Route path="/questions/:questionId" element={<QuestionDetail />} />
-            <Route path="/tests" element={<TestCatalog />} />
-            <Route path="/attempts/:attemptId" element={<TestAttempt />} />
-            <Route path="/attempts/:attemptId/result" element={<AttemptResult />} />
-            <Route path="/results" element={<StudentResults />} />
+            <Route path="/tests" element={<RequireSession><TestCatalog /></RequireSession>} />
+            <Route path="/attempts/:attemptId" element={<RequireSession><TestAttempt /></RequireSession>} />
+            <Route path="/attempts/:attemptId/result" element={<RequireSession><AttemptResult /></RequireSession>} />
+            {studentFeatures.pyq && <Route path="/pyq" element={<PYQ />} />}
+            <Route path="/results" element={<RequireSession><StudentResults /></RequireSession>} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/reset-password" element={<ResetPassword />} />
@@ -45,7 +53,7 @@ function App() {
           </Routes>
         </Suspense>
       </AuthProvider>
-    </BrowserRouter>
+    </BrowserRouter></AppBoundary>
   )
 }
 

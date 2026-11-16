@@ -12,7 +12,7 @@ class AdminDashboardResponse(BaseModel):
     draft_questions: int = Field(ge=0)
 
 
-ManagedRoleCode = Literal["editor", "administrator", "super_administrator"]
+ManagedRoleCode = Literal["editor", "test_manager", "administrator", "super_administrator"]
 
 
 class RoleChangeRequest(BaseModel):

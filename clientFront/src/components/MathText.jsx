@@ -1,6 +1,8 @@
 import { Component } from 'react'
-import { BlockMath, InlineMath } from 'react-katex'
+import katexComponents from 'react-katex'
 import { parseMathParts } from '../utils/parseMathParts'
+
+const { BlockMath, InlineMath } = katexComponents
 
 class SafeMath extends Component {
   state = { failed: false }

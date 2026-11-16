@@ -19,11 +19,13 @@
 .env.*
 !.env.example
 !**/.env.example
+!**/.env.production.example
 
 # Local Supabase state and credentials
 /supabase/.temp/
 /supabase/.branches/
 /backend/.venv/
+/backend/.tmp/
 __pycache__/
 *.py[cod]
 .pytest_cache/

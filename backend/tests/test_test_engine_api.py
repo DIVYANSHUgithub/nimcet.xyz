@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
+import pytest
 
 from app.core.config import Settings
 from app.core.security import StudentOnlyRoleResolver, VerifiedIdentity
@@ -114,7 +115,11 @@ class _TestEngine:
         }
 
 
-def _client(repository):
+def _client(repository, roles=None):
+    class _Roles:
+        def roles_for(self, _identity):
+            return frozenset(roles)
+
     app = create_app(
         settings=Settings(_env_file=None,
                            cors_allowed_origins="http://localhost:5173",
@@ -122,7 +127,7 @@ def _client(repository):
                            ),
         database=_Database(),
         token_verifier=_Verifier(),
-        role_resolver=StudentOnlyRoleResolver(),
+        role_resolver=StudentOnlyRoleResolver() if roles is None else _Roles(),
         test_engine_repository=repository,
     )
     return TestClient(app)
@@ -130,6 +135,17 @@ def _client(repository):
 
 def _auth():
     return {"Authorization": "Bearer test-access-token"}
+
+
+@pytest.mark.parametrize('role', ['student', 'editor', 'test_manager', 'administrator', 'super_administrator'])
+def test_each_app_role_can_practice_but_cannot_read_another_users_attempt(role):
+    repository = _TestEngine()
+    with _client(repository, roles=[role]) as client:
+        own = client.get('/api/v1/attempts/22222222-2222-4222-8222-222222222222', headers=_auth())
+        foreign = client.get('/api/v1/attempts/22222222-2222-4222-8222-222222222222', headers={'Authorization': 'Bearer other-user-2222'})
+    assert own.status_code == 200
+    assert foreign.status_code == 404
+    assert repository.calls == [('get', '22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111')]
 
 
 def test_start_and_recovery_return_safe_session_projection():

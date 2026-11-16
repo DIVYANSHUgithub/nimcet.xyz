@@ -9,7 +9,7 @@ import { useDailyDateKey } from '../hooks/useDailyDateKey'
 
 export default function DailyQuestions() {
   const dateKey = useDailyDateKey()
-  const [expandedQuestion, setExpandedQuestion] = useState({ key: null, id: null })
+
   const [questions, setQuestions] = useState([])
   const [loadError, setLoadError] = useState('')
   const [requestRevision, setRequestRevision] = useState(0)
@@ -42,12 +42,6 @@ export default function DailyQuestions() {
     return () => controller.abort()
   }, [dateKey, requestKey])
 
-  const handleToggle = (id) => setExpandedQuestion((previous) => (
-    previous.key === requestKey && previous.id === id
-      ? { key: requestKey, id: null }
-      : { key: requestKey, id }
-  ))
-
   return (
     <section className="bg-canvas-muted py-14 sm:py-16">
       <Container>
@@ -74,8 +68,6 @@ export default function DailyQuestions() {
                 question={question}
                 index={index}
                 total={questions.length}
-                isExpanded={expandedQuestion.key === requestKey && expandedQuestion.id === question.id}
-                onToggle={() => handleToggle(question.id)}
               />
             ))}
           </div>

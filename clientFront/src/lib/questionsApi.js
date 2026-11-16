@@ -1,13 +1,15 @@
 import { getSupabaseConfigError, supabase } from './supabase'
-import { ApiRequestError, backendGet } from './backendApi'
+import { ApiRequestError, backendGet, backendRequest } from './backendApi'
 
 export const QUESTION_PAGE_SIZE = 10
-const questionApiMode = String(import.meta.env?.VITE_QUESTION_API_MODE ?? 'supabase').trim().toLowerCase()
+const questionApiMode = String(import.meta.env?.VITE_QUESTION_API_MODE ?? 'backend').trim().toLowerCase()
 const useBackendQuestionApi = questionApiMode === 'backend'
 
 function backendFilters(filters = {}) {
   return {
     exam: filters.exam,
+    subtopic_id: filters.subtopicId,
+    pyq: filters.pyq || undefined,
     section: filters.section,
     subject: filters.subject,
     topic: filters.topic,
@@ -59,7 +61,7 @@ async function fetchQuestionPage({ page, pageSize, filters, signal }) {
   if (!supabase) throw getSupabaseConfigError()
   let query = supabase
     .from('questions')
-    .select('*', { count: 'exact' })
+    .select('id,exam,exam_year,section,question_number,question,options,subject,topic,difficulty,source,status,created_at', { count: 'exact' })
     .eq('status', 'published')
 
   query = applyQuestionFilters(query, filters)
@@ -124,7 +126,7 @@ export async function getQuestionById(id, { signal } = {}) {
 
   let query = supabase
     .from('questions')
-    .select('*')
+    .select('id,exam,exam_year,section,question_number,question,options,subject,topic,difficulty,source,status,created_at')
     .eq('status', 'published')
     .eq('id', String(id))
     .maybeSingle()
@@ -219,4 +221,14 @@ export async function getQuestionFacets({ signal } = {}) {
     subjects: [...subjects].sort((a, b) => a.localeCompare(b)).map((name) => ({ id: name, name })),
     topics: [...topics].sort((a, b) => a.localeCompare(b)),
   }
+}
+
+export function getQuestionAnswer(id, { signal } = {}) {
+  return backendGet(`questions/${encodeURIComponent(id)}/answer`, { signal })
+}
+
+export function submitPracticeAnswer(id, optionId, revision = 0) {
+  return backendRequest(`questions/${encodeURIComponent(id)}/practice`, {
+    method: 'POST', body: { option_id: optionId, expected_revision: revision },
+  })
 }

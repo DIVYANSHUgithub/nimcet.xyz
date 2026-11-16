@@ -47,7 +47,7 @@ export default function SignupForm({ onSubmit }) {
   const fields = [
     { name: 'fullName', label: 'Full name', placeholder: 'Enter your full name', type: 'text', autoComplete: 'name', Icon: UserRound },
     { name: 'email', label: 'Email address', placeholder: 'Enter your email address', type: 'email', autoComplete: 'email', Icon: Mail },
-    { name: 'username', label: 'Username', placeholder: 'Choose a username', type: 'text', autoComplete: 'username', Icon: AtSign },
+    { name: 'username', label: 'Username (optional)', placeholder: 'Choose a username', type: 'text', autoComplete: 'username', Icon: AtSign },
     { name: 'password', label: 'Password', placeholder: 'Create a password', type: 'password', autoComplete: 'new-password', Icon: Lock },
     { name: 'confirmPassword', label: 'Confirm password', placeholder: 'Confirm your password', type: 'password', autoComplete: 'new-password', Icon: Lock },
   ]

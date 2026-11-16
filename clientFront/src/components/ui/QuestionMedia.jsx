@@ -1,4 +1,5 @@
 import MathText from '../MathText'
+import RichContent from '../RichContent'
 
 export function QuestionMedia({ text = '', imageUrl = '', alt = 'Question illustration', className = '' }) {
   return (
@@ -19,6 +20,7 @@ export function QuestionMedia({ text = '', imageUrl = '', alt = 'Question illust
 }
 
 export function QuestionOptionContent({ option }) {
+  if (option?.blocks?.length) return <RichContent blocks={option.blocks} />
   if (typeof option === 'string') return <QuestionMedia text={option} />
   return <QuestionMedia text={option?.text ?? ''} imageUrl={option?.imageUrl ?? ''} alt="Answer option image" />
 }

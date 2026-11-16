@@ -4,7 +4,11 @@ import { ArrowLeft, CheckCircle2, Clock3, Eye, FileQuestion, LockKeyhole, Trophy
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import MathText from '../components/MathText'
+import RichContent from '../components/RichContent'
+import { QuestionOptionContent } from '../components/ui/QuestionMedia'
 import Button from '../components/ui/Button'
+import { useAuth } from '../context/useAuth'
+import { filterReviewQuestions } from '../lib/resultReview'
 import { ApiRequestError } from '../lib/backendApi'
 import { getAttemptResult, getAttemptReview } from '../lib/testsApi'
 
@@ -19,6 +23,12 @@ function number(value) {
 }
 
 export default function AttemptResult() {
+  const { user } = useAuth()
+  const { attemptId } = useParams()
+  return <AttemptResultPage key={`${user?.id ?? 'anonymous'}:${attemptId}`} />
+}
+
+function AttemptResultPage() {
   const { attemptId } = useParams()
   const [result, setResult] = useState(null)
   const [review, setReview] = useState(null)
@@ -26,6 +36,7 @@ export default function AttemptResult() {
   const [reviewLoading, setReviewLoading] = useState(false)
   const [error, setError] = useState('')
   const [reviewError, setReviewError] = useState('')
+  const [reviewFilter, setReviewFilter] = useState('all')
 
   const load = useCallback((signal) => {
     setLoading(true)
@@ -83,12 +94,13 @@ export default function AttemptResult() {
                 <div className="rounded-xl border border-danger-border bg-danger-bg p-4"><FileQuestion size={18} className="text-danger" /><p className="mt-3 text-2xl font-bold text-danger">{result.incorrect_count}</p><p className="text-xs text-ink-muted">Incorrect</p></div>
                 <div className="rounded-xl border border-line bg-canvas-muted p-4"><Clock3 size={18} className="text-ink-muted" /><p className="mt-3 text-2xl font-bold text-ink-heading">{result.unanswered_count}</p><p className="text-xs text-ink-muted">Unanswered</p></div>
               </div>
+              <p className="mt-5 text-sm text-ink-muted">Accuracy among attempted questions: {result.accuracy_percentage == null ? 'No answers attempted' : `${number(result.accuracy_percentage)}%`}. Correct answers as a share of all questions: {result.correct_percentage == null ? '—' : `${number(result.correct_percentage)}%`}.</p>
               {result.sections.length > 0 && <div className="mt-8"><h2 className="text-lg font-semibold text-ink-heading">Section performance</h2><div className="mt-3 divide-y divide-line rounded-xl border border-line">{result.sections.map((section) => { const scorePct = Math.max(0, Math.min(100, percentage(section.score, section.maximum_score))); return <div key={section.section_id} className="p-4"><div className="flex items-center justify-between gap-3"><h3 className="font-medium text-ink-heading">{section.title}</h3><span className="shrink-0 text-sm font-semibold tabular-nums text-ink-heading">{number(section.score)} / {number(section.maximum_score)}</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-canvas-subtle"><div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${scorePct}%` }} /></div><p className="mt-2 text-xs text-ink-muted">{section.correct_count} correct · {section.incorrect_count} incorrect · {section.unanswered_count} unanswered</p></div> })}</div></div>}
               <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5"><p className="text-xs text-ink-muted">Score released {new Date(result.released_at).toLocaleString()}</p>{result.review_released ? <Button onClick={showReview} disabled={reviewLoading}><Eye size={16} />{reviewLoading ? 'Loading review…' : review ? 'Refresh answer review' : 'Review answers'}</Button> : <span className="inline-flex items-center gap-2 text-sm text-ink-muted"><LockKeyhole size={15} />Answer review is not released yet</span>}</div>
             </section>
 
             {reviewError && <div className="mt-4 rounded-xl border border-warning-border bg-warning-bg p-4 text-sm text-warning" role="status">{reviewError}</div>}
-            {review && <section className="mt-7" aria-label="Answer review"><div className="mb-4 flex items-center gap-2"><Trophy size={18} className="text-accent" /><h2 className="text-xl font-bold text-ink-heading">Answer review</h2></div><div className="space-y-4">{review.questions.map((question) => <article key={question.display_order} className="rounded-2xl border border-line bg-surface p-5 sm:p-7"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Question {question.display_order + 1} · {question.section_title}</span><span className={`text-xs font-semibold ${question.is_correct ? 'text-success' : question.selected_option_id ? 'text-danger' : 'text-ink-muted'}`}>{question.is_correct ? `Correct · +${number(question.marks_awarded)}` : question.selected_option_id ? `Incorrect · ${number(question.marks_awarded)}` : 'Unanswered'}</span></div><div className="mt-4 text-base font-medium leading-7 text-ink-heading"><MathText text={question.question} /></div><div className="mt-4 grid gap-2">{question.options.map((option, index) => { const isCorrect = option.id === question.correct_option_id; const selected = option.id === question.selected_option_id; return <div key={option.id} className={`flex items-start gap-3 rounded-lg border p-3 ${isCorrect ? 'border-success-border bg-success-bg' : selected ? 'border-danger-border bg-danger-bg' : 'border-line bg-surface'}`}><span className="grid size-6 shrink-0 place-items-center rounded-full border border-current text-xs font-bold">{String.fromCharCode(65 + index)}</span><div className="flex-1 text-sm leading-6 text-ink"><MathText text={typeof option.content === 'string' ? option.content : JSON.stringify(option.content)} /></div><span className="shrink-0 text-xs font-semibold">{isCorrect ? 'Correct answer' : selected ? 'Your answer' : ''}</span></div> })}</div>{question.explanation && <div className="mt-4 rounded-lg bg-canvas-muted p-4"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-ink-muted">Explanation</p><div className="text-sm leading-6 text-ink"><MathText text={question.explanation} /></div></div>}</article>)}</div></section>}
+            {review && <section className="mt-7" aria-label="Answer review"><div className="mb-4 flex items-center gap-2"><Trophy size={18} className="text-accent" /><h2 className="text-xl font-bold text-ink-heading">Answer review</h2></div><div className="space-y-4"><label className="mb-4 block text-sm">Show answers <select className="ml-2 rounded border border-line p-2" value={reviewFilter} onChange={e => setReviewFilter(e.target.value)}><option value="all">All questions</option><option value="correct">Correct</option><option value="incorrect">Incorrect</option><option value="unanswered">Unanswered</option></select></label>{filterReviewQuestions(review.questions, reviewFilter).map((question) => <article key={question.display_order} className="rounded-2xl border border-line bg-surface p-5 sm:p-7"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Question {question.display_order + 1} · {question.section_title}</span><span className={`text-xs font-semibold ${question.is_correct ? 'text-success' : question.selected_option_id ? 'text-danger' : 'text-ink-muted'}`}>{question.is_correct ? `Correct · +${number(question.marks_awarded)}` : question.selected_option_id ? `Incorrect · ${number(question.marks_awarded)}` : 'Unanswered'}</span></div><div className="mt-4 text-base font-medium leading-7 text-ink-heading">{question.statement_blocks?.length ? <RichContent blocks={question.statement_blocks} /> : <MathText text={question.question} />}</div><div className="mt-4 grid gap-2">{question.options.map((option, index) => { const isCorrect = option.id === question.correct_option_id; const selected = option.id === question.selected_option_id; return <div key={option.id} className={`flex items-start gap-3 rounded-lg border p-3 ${isCorrect ? 'border-success-border bg-success-bg' : selected ? 'border-danger-border bg-danger-bg' : 'border-line bg-surface'}`}><span className="grid size-6 shrink-0 place-items-center rounded-full border border-current text-xs font-bold">{String.fromCharCode(65 + index)}</span><div className="flex-1 text-sm leading-6 text-ink"><QuestionOptionContent option={option.content} /></div><span className="shrink-0 text-xs font-semibold">{isCorrect ? 'Correct answer' : selected ? 'Your answer' : ''}</span></div> })}</div>{(question.explanation || question.explanation_blocks?.length > 0) && <div className="mt-4 rounded-lg bg-canvas-muted p-4"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-ink-muted">Explanation</p><div className="text-sm leading-6 text-ink">{question.explanation_blocks?.length ? <RichContent blocks={question.explanation_blocks} /> : <MathText text={question.explanation} />}</div></div>}</article>)}</div></section>}
           </>
         )}
       </main>

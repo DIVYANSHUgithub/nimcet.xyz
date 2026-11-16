@@ -60,3 +60,14 @@
 }
 
 
+
+.skip-link { position: fixed; top: 8px; left: 8px; z-index: 1000; transform: translateY(-200%); background: #111827; color: white; padding: 12px 18px; border-radius: 6px; }
+.skip-link:focus { transform: translateY(0); }
+.app-recovery { max-width: 44rem; margin: 5rem auto; padding: 1.5rem; line-height: 1.7; }
+.app-recovery h1 { font-size: 1.5rem; font-weight: 700; }
+.app-recovery button { margin-top: 1rem; border-radius: .5rem; padding: .7rem 1rem; background: #111827; color: white; }
+#main-content:focus { outline: none; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+.connection-status { padding: 12px 20px; color: #723b13; background: #fff5d6; border-bottom: 1px solid #e5c67b; font-size: 14px; line-height: 1.5; }
+.connection-status button { margin-left: 1rem; text-decoration: underline; min-height: 40px; cursor: pointer; }

@@ -11,6 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.v1.routes.health import router as health_router
 from app.api.v1.router import create_api_router
 from app.core.config import Settings, get_settings
+from app.core.deployment import deployment_errors
 from app.core.errors import (
     http_exception_handler,
     unexpected_exception_handler,
@@ -33,6 +34,10 @@ def create_app(
     test_engine_repository: TestEngineRepository | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
+    if settings.environment == "production":
+        errors = deployment_errors(settings)
+        if errors:
+            raise ValueError("Deployment configuration failed: " + " ".join(errors))
     configure_logging(settings.log_level)
 
     @asynccontextmanager
@@ -50,13 +55,13 @@ def create_app(
     )
     app.state.settings = settings
     db_url = settings.database_url.get_secret_value() if settings.database_url else None
-    app.state.database = database or Database(db_url)
-    app.state.test_engine_repository = test_engine_repository or TestEngineRepository(app.state.database)
+    app.state.database = database or Database(db_url, **settings.database_options())
+    app.state.test_engine_repository = test_engine_repository or TestEngineRepository(app.state.database, phase5_enabled=settings.phase5_enabled)
     app.state.token_verifier = token_verifier or SupabaseTokenVerifier(settings)
     # Until the role schema is verified and migrated, authenticated users receive only
     # the ordinary student role. Token metadata never grants elevated privileges.
     app.state.role_resolver = role_resolver or (
-        DatabaseRoleResolver(app.state.database)
+        DatabaseRoleResolver(app.state.database, check_account_status=settings.admin_workflows_enabled)
         if settings.trusted_role_lookup_enabled
         else StudentOnlyRoleResolver()
     )

@@ -35,6 +35,7 @@ class QuestionSnapshot:
     marks: Decimal
     negative_marks: Decimal
     option_order: tuple[int, ...]
+    statement_blocks: tuple[Any, ...] = ()
 
 
 def ensure_test_eligible(
@@ -91,6 +92,7 @@ def session_projection(
                 "section_title": question.section_title,
                 "display_order": question.display_order,
                 "question": question.question,
+                "statement_blocks": list(question.statement_blocks),
                 "options": [
                     {"id": option_ids[index], "content": question.options[index]}
                     for index in question.option_order
@@ -108,9 +110,9 @@ def session_projection(
         )
 
     return {
-        "attempt_id": attempt["attempt_id"],
-        "test_id": attempt["test_id"],
-        "test_version_id": attempt["test_version_id"],
+        "attempt_id": str(attempt["attempt_id"]),
+        "test_id": str(attempt["test_id"]),
+        "test_version_id": str(attempt["test_version_id"]),
         "test_title": attempt.get("test_title", "Timed practice"),
         "status": attempt["status"],
         "started_at": attempt["started_at"],

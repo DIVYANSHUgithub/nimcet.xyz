@@ -8,6 +8,7 @@ test('admin access requires a trusted backend role from the supported role set',
   assert.equal(hasAdminAccess([]), false)
   assert.equal(hasAdminAccess(['student']), false)
   assert.equal(hasAdminAccess(['editor']), true)
+  assert.equal(hasAdminAccess(['test_manager']), true)
   assert.equal(hasAdminAccess(['administrator']), true)
   assert.equal(hasAdminAccess(['super_administrator']), true)
 })

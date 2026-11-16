@@ -3,13 +3,16 @@ import { Link, useLocation } from 'react-router-dom'
 import { Menu, Search, X } from 'lucide-react'
 import Container from './ui/Container'
 import Button from './ui/Button'
+import { isNavActive } from '../lib/navigation'
 import { cn } from '../lib/cn'
 import Toast from './Toast'
 import { useAuth } from '../context/useAuth'
+import { studentFeatures } from '../lib/studentFeatures'
 
 const navLinks = [
   { label: 'Questions', to: '/questions' },
   { label: 'Tests', to: '/tests' },
+  ...(studentFeatures.pyq ? [{ label: 'PYQ', to: '/pyq' }] : []),
   { label: 'My results', to: '/results' },
 ]
 
@@ -21,21 +24,12 @@ export default function Navbar() {
   const menuButtonRef = useRef(null)
   const isLoginPage = pathname === '/login'
   const isSignupPage = pathname === '/signup'
-  const isQuestionsPage =
-    pathname === '/questions' || pathname.startsWith('/questions/')
-  const isTestsPage = pathname === '/tests' || pathname.startsWith('/attempts/')
-  const isResultsPage = pathname === '/results'
 
   const linkClass = (active) =>
     cn(
       'text-sm font-medium text-ink-muted transition-colors hover:text-ink-heading',
       active && 'font-semibold text-ink-heading'
     )
-
-  const showUnavailable = (feature) => {
-    setMenuOpen(false)
-    setNotice(`${feature} are not available in this project yet.`)
-  }
 
   const handleSignOut = async () => {
     setMenuOpen(false)
@@ -64,16 +58,15 @@ export default function Navbar() {
               <Link
                 key={link.label}
                 to={link.to}
-                className={linkClass((isQuestionsPage && link.label === 'Questions') || (isTestsPage && link.label === 'Tests') || (isResultsPage && link.label === 'My results'))}
+                className={linkClass(isNavActive(pathname, link.to))}
                 aria-current={
-                  (isQuestionsPage && link.label === 'Questions') || (isTestsPage && link.label === 'Tests') || (isResultsPage && link.label === 'My results') ? 'page' : undefined
+                  isNavActive(pathname, link.to) ? 'page' : undefined
                 }
               >
                 {link.label}
               </Link>
             ) : null
           )}
-          <button type="button" className={`${linkClass(false)} border-0 bg-transparent`} onClick={() => showUnavailable('Previous-year questions')}>PYQs</button>
           <Link to="/#about" className={linkClass(false)}>About</Link>
         </nav>
 
@@ -118,6 +111,7 @@ export default function Navbar() {
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
+            aria-controls="mobile-navigation"
           >
             {menuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
@@ -127,6 +121,7 @@ export default function Navbar() {
       {menuOpen && (
         <nav
           className="flex flex-col border-t border-line px-5 pb-4 md:hidden"
+          id="mobile-navigation"
           aria-label="Mobile navigation"
           onKeyDown={(event) => {
             if (event.key === 'Escape') {
@@ -140,6 +135,7 @@ export default function Navbar() {
               <Link
                 key={link.label}
                 to={link.to}
+                aria-current={isNavActive(pathname, link.to) ? 'page' : undefined}
                 className="border-b border-line py-3 text-[0.9375rem] font-medium text-ink"
                 onClick={() => setMenuOpen(false)}
               >
@@ -147,7 +143,6 @@ export default function Navbar() {
               </Link>
             ) : null
           )}
-          <button type="button" className="border-b border-line py-3 text-left text-[0.9375rem] font-medium text-ink" onClick={() => showUnavailable('Previous-year questions')}>PYQs (unavailable)</button>
           <Link to="/#about" className="border-b border-line py-3 text-[0.9375rem] font-medium text-ink" onClick={() => setMenuOpen(false)}>About</Link>
           {!user && !isLoginPage && (
             <Link

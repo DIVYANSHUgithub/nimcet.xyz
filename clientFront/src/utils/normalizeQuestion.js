@@ -17,7 +17,7 @@ function normalizeOption(option) {
   if (option && typeof option === 'object') {
     const text = String(option.text ?? option.label ?? '')
     const imageUrl = String(option.image_url ?? option.imageUrl ?? option.url ?? '')
-    return { text, imageUrl, isImage: Boolean(imageUrl) }
+    return { ...(option.id ? { id: option.id } : {}), ...(option.blocks ? { blocks: option.blocks } : {}), text, imageUrl, isImage: Boolean(imageUrl) }
   }
 
   return String(option ?? '')
@@ -27,6 +27,7 @@ function hasOptionContent(option) {
   if (typeof option === 'string') return Boolean(option.trim())
   if (!option || typeof option !== 'object') return false
   return Boolean(
+    (Array.isArray(option.blocks) && option.blocks.length > 0) ||
     String(option.text ?? '').trim() ||
     String(option.imageUrl ?? option.image_url ?? option.url ?? '').trim()
   )
@@ -70,6 +71,7 @@ export function normalizeQuestion(row = {}) {
 
   const question = {
     id: row.id == null ? '' : String(row.id),
+    revision: row.revision ?? 0,
     subject: String(row.subject ?? ''),
     section: String(row.section ?? ''),
     chapter: row.chapter == null ? null : String(row.chapter),
@@ -79,6 +81,8 @@ export function normalizeQuestion(row = {}) {
     question: String(row.question ?? ''),
     questionImageUrl: String(row.question_image_url ?? row.questionImageUrl ?? ''),
     options,
+    statementBlocks: row.statement_blocks ?? [],
+    optionIds: row.option_ids ?? options.map((o, i) => o?.id ?? `option-${i}`),
     correctOptionIndex,
     correctAnswer: Number.isInteger(correctOptionIndex) ? options[correctOptionIndex] ?? '' : '',
     explanation: String(row.explanation ?? ''),

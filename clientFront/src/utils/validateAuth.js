@@ -17,7 +17,6 @@ export function validateSignup(values = {}) {
   const email = String(values.email ?? '').trim()
   if (!email) errors.email = 'Enter your email address.'
   else if (!isValidEmail(email)) errors.email = 'Enter a valid email address.'
-  if (!String(values.username ?? '').trim()) errors.username = 'Choose a username.'
   if (!values.password) errors.password = 'Create a password.'
   else if (String(values.password).length < 6) errors.password = 'Password must be at least 6 characters.'
   if (!values.confirmPassword) errors.confirmPassword = 'Confirm your password.'

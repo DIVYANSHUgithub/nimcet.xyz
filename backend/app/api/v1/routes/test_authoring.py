@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.api.dependencies import require_roles
 from app.core.security import Principal
@@ -15,12 +15,12 @@ from app.schemas.tests import (
 
 
 router = APIRouter()
-EDITOR_ROLES = ("editor", "administrator", "super_administrator")
+AUTHOR_ROLES = ("test_manager", "administrator", "super_administrator")
 ADMIN_ROLES = ("administrator", "super_administrator")
 
 
 def _repository(request: Request) -> TestAuthoringRepository:
-    return TestAuthoringRepository(request.app.state.database)
+    return TestAuthoringRepository(request.app.state.database, phase5_enabled=request.app.state.settings.phase5_enabled, workflows_enabled=request.app.state.settings.admin_workflows_enabled)
 
 
 def _translate(exc: Exception) -> HTTPException:
@@ -30,6 +30,8 @@ def _translate(exc: Exception) -> HTTPException:
             detail={"code": "database_unavailable", "message": "Test authoring is temporarily unavailable."},
         )
     if isinstance(exc, TestEngineForbidden):
+        if exc.code == 'rich_snapshot_not_enabled':
+            return HTTPException(status_code=409, detail={'code':exc.code,'message':'Rich question snapshots are not available yet.'})
         status = 404 if exc.code in {"test_unavailable", "test_version_unavailable"} else 409
         return HTTPException(
             status_code=status,
@@ -43,11 +45,20 @@ def _translate(exc: Exception) -> HTTPException:
     raise exc
 
 
+@router.get('/tests')
+def list_tests(request: Request, page: int = Query(1,ge=1), search: str = Query('',max_length=120),
+               principal: Principal = Depends(require_roles(*AUTHOR_ROLES))):
+    try:
+        return _repository(request).list_tests(page=page,search=search)
+    except DatabaseUnavailable as exc:
+        raise _translate(exc) from None
+
+
 @router.post("/tests", response_model=TestDraftResponse, status_code=201)
 def create_test(
     payload: CreateTestDraft,
     request: Request,
-    principal: Principal = Depends(require_roles(*EDITOR_ROLES)),
+    principal: Principal = Depends(require_roles(*AUTHOR_ROLES)),
 ) -> TestDraftResponse:
     try:
         result = _repository(request).create_draft(
@@ -65,7 +76,7 @@ def create_test_version(
     test_id: str,
     payload: CreateTestVersion,
     request: Request,
-    principal: Principal = Depends(require_roles(*EDITOR_ROLES)),
+    principal: Principal = Depends(require_roles(*AUTHOR_ROLES)),
 ) -> TestVersionResponse:
     try:
         result = _repository(request).create_version(

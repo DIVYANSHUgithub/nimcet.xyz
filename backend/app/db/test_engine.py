@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import text
 
 from app.db.database import Database
+from app.domain.results import result_metrics
 from app.domain.test_engine import (
     QuestionSnapshot,
     TestEngineConflict,
@@ -45,6 +46,7 @@ def _question_snapshot(row: dict[str, Any]) -> QuestionSnapshot:
         section_title=row["section_title"],
         display_order=int(row["display_order"]),
         question=row["question_snapshot"],
+        statement_blocks=tuple(row.get("question_blocks_snapshot") or []),
         options=tuple(options),
         correct_option=int(row["correct_option_snapshot"]),
         marks=Decimal(str(row["marks"])),
@@ -76,20 +78,23 @@ def _result_release_time(policy: dict[str, Any], submitted_at: datetime | None, 
 def _review_release_time(
     policy: dict[str, Any], result_release: datetime | None, now: datetime
 ) -> datetime | None:
+    if result_release is None:
+        return None
     mode = policy.get("answers", "with_results")
     if mode == "with_results":
         return result_release
     if mode == "at_time":
         release_at = _policy_time(policy.get("answers_at"))
-        return release_at if release_at is not None and release_at <= now else None
+        return max(release_at, result_release) if release_at is not None and release_at <= now else None
     return None
 
 
 class TestEngineRepository:
     """Transactional test attempt operations over the Phase 8 draft schema."""
 
-    def __init__(self, database: Database):
+    def __init__(self, database: Database, phase5_enabled: bool = False):
         self.database = database
+        self.phase5_enabled = phase5_enabled
 
     def get_attempt_result(self, *, attempt_id: str, user_id: str) -> dict[str, Any]:
         attempt_uuid, user_uuid = map(_as_uuid, (attempt_id, user_id))
@@ -99,7 +104,7 @@ class TestEngineRepository:
                     "SELECT a.id AS attempt_id,a.status,t.id AS test_id,t.title AS test_title,"
                     "s.submission_reason,s.submitted_at AS submission_time,v.review_policy,"
                     "r.score,r.maximum_score,r.correct_count,r.incorrect_count,r.unanswered_count,"
-                    "r.released_at,clock_timestamp() AS server_time "
+                    "r.released_at,to_jsonb(r)->>'scoring_version' AS scoring_version,clock_timestamp() AS server_time "
                     "FROM public.test_attempts a JOIN public.test_versions v ON v.id=a.test_version_id "
                     "JOIN public.tests t ON t.id=v.test_id "
                     "LEFT JOIN public.test_submissions s ON s.attempt_id=a.id "
@@ -137,7 +142,9 @@ class TestEngineRepository:
             "incorrect_count": row["incorrect_count"],
             "unanswered_count": row["unanswered_count"],
             "released_at": row["released_at"] or released_at,
+            "scoring_version": row.get("scoring_version") or "mcq-index-v1",
             "review_released": review_release is not None,
+            **result_metrics(row["correct_count"],row["incorrect_count"],row["unanswered_count"]),
             "sections": [
                 {
                     "section_id": str(section["section_id"]),
@@ -177,6 +184,8 @@ class TestEngineRepository:
                 text(
                     "SELECT aq.display_order,ts.title AS section_title,tq.question_snapshot,tq.options_snapshot,"
                     "tq.correct_option_snapshot,tq.explanation_snapshot,aq.option_order,aa.selected_option_id,"
+                    "to_jsonb(tq)->'question_blocks_snapshot' AS question_blocks_snapshot,"
+                    "to_jsonb(tq)->'explanation_blocks_snapshot' AS explanation_blocks_snapshot,"
                     "COALESCE(tq.marks,ts.default_marks) AS marks,"
                     "COALESCE(tq.negative_marks,ts.default_negative_marks) AS negative_marks "
                     "FROM public.attempt_questions aq JOIN public.test_questions tq ON tq.id=aq.test_question_id "
@@ -207,6 +216,8 @@ class TestEngineRepository:
                 "display_order": int(item["display_order"]),
                 "section_title": item["section_title"],
                 "question": item["question_snapshot"],
+                "statement_blocks": item.get("question_blocks_snapshot") or [],
+                "explanation_blocks": item.get("explanation_blocks_snapshot") or [],
                 "options": [
                     {"id": f"option-{index}", "content": options[index]}
                     for index in option_order
@@ -237,7 +248,7 @@ class TestEngineRepository:
             ).scalar_one())
             rows = connection.execute(
                 text(
-                    "SELECT a.id AS attempt_id,t.id AS test_id,t.title AS test_title,a.status,a.started_at,"
+                    "SELECT a.id AS attempt_id,t.id AS test_id,t.title AS test_title,a.status,a.started_at,a.deadline_at,"
                     "a.submitted_at,v.review_policy,r.score,r.maximum_score,clock_timestamp() AS server_time "
                     "FROM public.test_attempts a JOIN public.test_versions v ON v.id=a.test_version_id "
                     "JOIN public.tests t ON t.id=v.test_id LEFT JOIN public.test_results r ON r.attempt_id=a.id "
@@ -261,6 +272,7 @@ class TestEngineRepository:
                 "test_title": row["test_title"],
                 "status": row["status"],
                 "started_at": row["started_at"],
+                "deadline_at": row["deadline_at"],
                 "submitted_at": row["submitted_at"],
                 "score": row["score"] if result_released else None,
                 "maximum_score": row["maximum_score"] if result_released else None,
@@ -316,7 +328,7 @@ class TestEngineRepository:
             total = int(connection.execute(
                 text(
                     "SELECT count(*) FROM public.tests AS t "
-                    "WHERE t.status='published' AND t.visibility='public' "
+                    "WHERE t.status='published' AND t.visibility='public' AND t.kind<>'pyq' "
                     "AND EXISTS (SELECT 1 FROM public.test_versions v "
                     "WHERE v.test_id=t.id AND v.status='published')"
                 )
@@ -336,7 +348,7 @@ class TestEngineRepository:
                     "JOIN public.test_sections s ON s.test_version_id=v.id "
                     "JOIN public.test_questions q ON q.test_section_id=s.id "
                     "LEFT JOIN public.test_attempts a ON a.test_version_id=v.id AND a.user_id=:user_id "
-                    "WHERE t.status='published' AND t.visibility='public' "
+                    "WHERE t.status='published' AND t.visibility='public' AND t.kind<>'pyq' "
                     "GROUP BY t.id,t.title,t.kind,t.examination_code,v.duration_seconds,"
                     "v.available_from,v.available_until,v.attempt_limit,v.version_number "
                     "ORDER BY t.created_at DESC,t.id LIMIT :limit OFFSET :offset"
@@ -366,27 +378,34 @@ class TestEngineRepository:
             "has_more": offset + len(rows) < total,
         }
 
-    def start_attempt(self, *, test_id: str, user_id: str) -> dict[str, Any]:
+    def start_attempt(self, *, test_id: str, user_id: str, version_id: str | None = None) -> dict[str, Any]:
         test_uuid = _as_uuid(test_id)
         user_uuid = _as_uuid(user_id)
         active_id = None
         with self.database.transaction() as connection:
             version = connection.execute(
                 text(
-                    "SELECT t.id AS test_id, t.visibility, t.owner_id, t.status AS test_status, "
+                    "SELECT t.id AS test_id, t.kind, t.visibility, t.owner_id, t.status AS test_status, "
                     "v.id AS test_version_id, v.status AS version_status, v.duration_seconds, "
                     "v.attempt_limit, v.available_from, v.available_until, v.shuffle_questions, "
                     "v.shuffle_options, clock_timestamp() AS server_time "
                     "FROM public.tests AS t JOIN public.test_versions AS v ON v.test_id = t.id "
-                    "WHERE t.id = :test_id AND t.status = 'published' AND v.status = 'published' "
+                    "WHERE t.id = :test_id AND (CAST(:version_id AS uuid) IS NULL OR v.id=CAST(:version_id AS uuid)) AND t.status = 'published' AND v.status = 'published' "
                     "AND (t.visibility = 'public' OR t.owner_id = :user_id) "
                     "ORDER BY v.version_number DESC LIMIT 1 FOR UPDATE OF v"
                 ),
-                {"test_id": test_uuid, "user_id": user_uuid},
+                {"test_id": test_uuid, "user_id": user_uuid, "version_id": _as_uuid(version_id) if version_id is not None else None},
             ).mappings().first()
             if version is None:
                 raise TestEngineForbidden("test_unavailable")
 
+            if version.get('kind') == 'pyq':
+                if not self.phase5_enabled:
+                    raise TestEngineForbidden('test_unavailable')
+                approved = connection.execute(text('SELECT 1 FROM public.pyq_papers WHERE test_version_id=:id'),
+                                              {'id':version['test_version_id']}).scalar_one_or_none()
+                if approved is None:
+                    raise TestEngineForbidden('test_unavailable')
             active = connection.execute(
                 text(
                     "SELECT id FROM public.test_attempts "
@@ -511,6 +530,7 @@ class TestEngineRepository:
                 text(
                     "SELECT aq.id AS attempt_question_id, q.question_id, q.test_section_id AS section_id, "
                     "s.title AS section_title, aq.display_order, q.question_snapshot, q.options_snapshot, "
+                    "to_jsonb(q)->'question_blocks_snapshot' AS question_blocks_snapshot, "
                     "q.correct_option_snapshot, COALESCE(q.marks,s.default_marks) AS marks, "
                     "COALESCE(q.negative_marks,s.default_negative_marks) AS negative_marks, "
                     "aq.option_order, aq.visited, aq.marked_for_review, "
@@ -579,16 +599,22 @@ class TestEngineRepository:
                 option_ids=option_ids,
                 selected_option_id=selected_option_id,
             )
+            # INSERT ... SELECT WHERE expected_version=0 produces no candidate
+            # row for later saves, so ON CONFLICT cannot update an existing answer.
+            # Keep first-save and revision-checked update semantics explicit.
+            save_sql = (
+                "INSERT INTO public.attempt_answers (attempt_question_id,selected_option_id,version,saved_at) "
+                "VALUES (:question_id,:selected_option_id,1,clock_timestamp()) "
+                "ON CONFLICT (attempt_question_id) DO NOTHING "
+                "RETURNING attempt_question_id,selected_option_id,version,saved_at"
+                if expected_version == 0 else
+                "UPDATE public.attempt_answers SET selected_option_id=:selected_option_id, "
+                "version=version+1,saved_at=clock_timestamp() "
+                "WHERE attempt_question_id=:question_id AND version=:expected_version "
+                "RETURNING attempt_question_id,selected_option_id,version,saved_at"
+            )
             saved = connection.execute(
-                text(
-                    "INSERT INTO public.attempt_answers (attempt_question_id,selected_option_id,version,saved_at) "
-                    "SELECT :question_id,:selected_option_id,1,clock_timestamp() WHERE :expected_version=0 "
-                    "ON CONFLICT (attempt_question_id) DO UPDATE SET "
-                    "selected_option_id=EXCLUDED.selected_option_id, "
-                    "version=public.attempt_answers.version+1, saved_at=clock_timestamp() "
-                    "WHERE public.attempt_answers.version=:expected_version "
-                    "RETURNING attempt_question_id,selected_option_id,version,saved_at"
-                ),
+                text(save_sql),
                 {
                     "question_id": question_uuid,
                     "selected_option_id": selected_option_id,

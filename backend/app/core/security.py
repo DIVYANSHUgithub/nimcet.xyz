@@ -117,7 +117,7 @@ class SupabaseTokenVerifier:
                 if self._jwks_client is None:
                     self._jwks_client = PyJWKClient(
                         self.settings.supabase_jwks_url,
-                        cache_keys=True,
+                        cache_keys=False,
                         timeout=5,
                     )
                 key = self._jwks_client.get_signing_key_from_jwt(token).key

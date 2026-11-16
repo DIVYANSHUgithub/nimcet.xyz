@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import LoginForm from '../components/auth/LoginForm'
 import Toast from '../components/Toast'
 import SignInBenefits from '../components/auth/SignInBenefits'
 import { getSupabaseConfigError, supabase } from '../lib/supabase'
+import { safeReturnPath } from '../lib/navigation'
 import { useAuth } from '../context/useAuth'
 import { isValidEmail } from '../utils/validateAuth'
 
@@ -14,6 +15,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false)
   const [isRecoveryLoading, setIsRecoveryLoading] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
 
   const handleLogin = async ({ email, password }) => {
@@ -25,7 +27,7 @@ export default function Login() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
-      navigate('/questions')
+      navigate(safeReturnPath(location.state?.from), { replace: true })
     } catch (error) {
       console.error('Login failed:', error)
       setToast(error.message || 'Unable to sign in. Check your email and password.')

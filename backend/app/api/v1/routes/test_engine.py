@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from app.api.dependencies import require_roles
+from app.api.dependencies import get_current_principal
 from app.db.database import DatabaseUnavailable
 from app.db.test_engine import AttemptNotFound, TestEngineRepository
 from app.domain.test_engine import TestEngineConflict, TestEngineForbidden
@@ -71,7 +71,7 @@ def list_public_tests(
     request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=12, ge=1, le=50),
-    principal=Depends(require_roles("student")),
+    principal=Depends(get_current_principal),
 ) -> PublicTestListResponse:
     try:
         payload = _repository(request).list_public_tests(
@@ -86,7 +86,7 @@ def list_public_tests(
 def start_attempt(
     test_id: str,
     request: Request,
-    principal=Depends(require_roles("student")),
+    principal=Depends(get_current_principal),
 ) -> TestSession:
     try:
         payload = _repository(request).start_attempt(test_id=test_id, user_id=principal.user_id)
@@ -99,7 +99,7 @@ def start_attempt(
 def get_attempt(
     attempt_id: str,
     request: Request,
-    principal=Depends(require_roles("student")),
+    principal=Depends(get_current_principal),
 ) -> TestSession:
     try:
         payload = _repository(request).get_attempt(attempt_id=attempt_id, user_id=principal.user_id)
@@ -112,7 +112,7 @@ def get_attempt(
 def get_attempt_result(
     attempt_id: str,
     request: Request,
-    principal=Depends(require_roles("student")),
+    principal=Depends(get_current_principal),
 ) -> AttemptResultResponse:
     try:
         payload = _repository(request).get_attempt_result(attempt_id=attempt_id, user_id=principal.user_id)
@@ -125,7 +125,7 @@ def get_attempt_result(
 def get_attempt_review(
     attempt_id: str,
     request: Request,
-    principal=Depends(require_roles("student")),
+    principal=Depends(get_current_principal),
 ) -> AttemptReviewResponse:
     try:
         payload = _repository(request).get_attempt_review(attempt_id=attempt_id, user_id=principal.user_id)
@@ -140,7 +140,7 @@ def save_answer(
     attempt_question_id: str,
     payload: SaveAnswerRequest,
     request: Request,
-    principal=Depends(require_roles("student")),
+    principal=Depends(get_current_principal),
 ) -> SaveAnswerResponse:
     try:
         result = _repository(request).save_answer(
@@ -160,7 +160,7 @@ def save_navigation(
     attempt_id: str,
     payload: SaveNavigationRequest,
     request: Request,
-    principal=Depends(require_roles("student")),
+    principal=Depends(get_current_principal),
 ) -> dict:
     try:
         return _repository(request).save_navigation(
@@ -178,7 +178,7 @@ def submit_attempt(
     attempt_id: str,
     _payload: SubmitAttemptRequest,
     request: Request,
-    principal=Depends(require_roles("student")),
+    principal=Depends(get_current_principal),
 ) -> AttemptSubmissionResponse:
     try:
         result = _repository(request).submit_attempt(attempt_id=attempt_id, user_id=principal.user_id)
@@ -192,7 +192,7 @@ def list_my_attempts(
     request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=50),
-    principal=Depends(require_roles("student")),
+    principal=Depends(get_current_principal),
 ) -> StudentAttemptHistoryResponse:
     try:
         payload = _repository(request).list_student_attempts(
@@ -206,7 +206,7 @@ def list_my_attempts(
 @student_analytics_router.get("/me/dashboard", response_model=StudentAnalyticsResponse)
 def my_test_analytics(
     request: Request,
-    principal=Depends(require_roles("student")),
+    principal=Depends(get_current_principal),
 ) -> StudentAnalyticsResponse:
     try:
         payload = _repository(request).get_student_analytics(user_id=principal.user_id)

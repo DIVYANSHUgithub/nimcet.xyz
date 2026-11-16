@@ -20,7 +20,7 @@ Question media is optional. Use `question_image_url` for an image belonging to t
 
 The inspected table does not include a chapter, question type, popularity/importance classification, or attempt-count field. Chapter filtering is marked unavailable, difficulty stays unspecified when null, and the UI does not invent those statistics. A local catalog migration draft exists but has not been applied to production; full migration history and production role/default-privilege verification remain pending. Keep question access read-only for the public client unless the project's policies explicitly authorize more.
 
-Email/password signup and login use Supabase Auth. Configure the local app origin as a Supabase Site URL/redirect allowlist, including the `/login` confirmation redirect and `/reset-password` recovery route. Username is currently saved as Auth user metadata; there is no public profile table or username uniqueness constraint in this repository.
+Email/password signup and login use Supabase Auth. Configure the local app origin as a Supabase Site URL/redirect allowlist, including the `/login` confirmation redirect and `/reset-password` recovery route. Full name and email are required; username is optional and, when supplied, is saved as Auth user metadata. There is no public profile table or username uniqueness constraint in this repository.
 
 Google and GitHub buttons on both the login and signup pages start Supabase OAuth and return signed-in users to `/questions`. OAuth-created accounts use the same Supabase Auth user records as email signup; the username field is only collected by email signup.
 

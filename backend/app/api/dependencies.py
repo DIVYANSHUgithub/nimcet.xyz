@@ -9,7 +9,8 @@ from app.core.security import (
     InvalidAccessToken,
     Principal,
 )
-from app.db.roles import RoleStorageUnavailable
+from app.db.roles import RoleStorageUnavailable, AccountSuspended
+from starlette.concurrency import run_in_threadpool
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -25,8 +26,12 @@ async def get_current_principal(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    settings = request.app.state.settings
+    if settings.admin_workflows_enabled and not settings.trusted_role_lookup_enabled:
+        raise HTTPException(status_code=503, detail={"code": "authorization_not_configured", "message": "Trusted authorization is required for administrative workflows."})
+
     try:
-        identity = request.app.state.token_verifier.verify(credentials.credentials)
+        identity = await run_in_threadpool(request.app.state.token_verifier.verify, credentials.credentials)
     except AuthNotConfigured:
         raise HTTPException(
             status_code=503,
@@ -45,7 +50,9 @@ async def get_current_principal(
         ) from None
 
     try:
-        roles = request.app.state.role_resolver.roles_for(identity)
+        roles = await run_in_threadpool(request.app.state.role_resolver.roles_for, identity)
+    except AccountSuspended:
+        raise HTTPException(status_code=403,detail={'code':'account_suspended','message':'Application access for this account is suspended.'}) from None
     except RoleStorageUnavailable:
         raise HTTPException(
             status_code=503,

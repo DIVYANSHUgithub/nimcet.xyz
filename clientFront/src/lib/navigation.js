@@ -1,0 +1,17 @@
+export function safeReturnPath(value, fallback = '/questions') {
+  if (typeof value !== 'string' || value.includes('\\') || [...value].some(character => character.charCodeAt(0) <= 32)) return fallback
+  return /^\/(?:questions(?:\/[^?#]*)?|tests|results|pyq|attempts\/[a-zA-Z0-9-]+(?:\/result)?)(?:[?#].*)?$/.test(value) ? value : fallback
+}
+
+export function pageTitle(pathname) {
+  if (/^\/attempts\/[^/]+\/result$/.test(pathname)) return 'Attempt result'
+  if (pathname.startsWith('/attempts/')) return 'Test attempt'
+  if (pathname.startsWith('/questions/')) return 'Practice question'
+  return ({ '/': 'Prepare for NIMCET', '/questions': 'Question bank', '/tests': 'Tests', '/results': 'My results', '/pyq': 'Previous-year questions', '/login': 'Sign in', '/signup': 'Create account', '/reset-password': 'Reset password' })[pathname] ?? 'Page not found'
+}
+
+export function isNavActive(pathname, target) {
+  if (target === '/results') return pathname === '/results' || /^\/attempts\/[^/]+\/result$/.test(pathname)
+  if (target === '/tests') return pathname === '/tests' || (pathname.startsWith('/attempts/') && !pathname.endsWith('/result'))
+  return pathname === target || pathname.startsWith(`${target}/`)
+}
