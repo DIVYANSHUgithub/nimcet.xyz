@@ -1,4 +1,6 @@
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { signInReturnPath } from '../lib/navigation'
+import { clearOAuthReturn } from '../lib/authReturn'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import SignupForm from '../components/auth/SignupForm'
@@ -7,9 +9,11 @@ import { getSupabaseConfigError, supabase } from '../lib/supabase'
 
 export default function Signup() {
   const navigate = useNavigate()
+  const location = useLocation()
 
   const handleSignup = async ({ fullName, email, username, password }) => {
     if (!supabase) return { error: getSupabaseConfigError().message }
+    clearOAuthReturn()
     const metadata = { full_name: fullName }
     if (username) metadata.username = username
     const { data, error } = await supabase.auth.signUp({
@@ -22,7 +26,7 @@ export default function Signup() {
     })
     if (error) return { error: error.message || 'Unable to create your account.' }
     if (data.session) {
-      navigate('/questions')
+      navigate(signInReturnPath(location), { replace: true })
       return { message: 'Account created. You are signed in.' }
     }
     return { message: 'Account created. Check your email to confirm the address before signing in.' }

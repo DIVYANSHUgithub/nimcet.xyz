@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Eye, EyeOff, Lock, Mail, AtSign, UserRound } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { authLinkTo } from '../../lib/navigation'
 import SocialSignup from './SocialSignup'
 import { validateSignup } from '../../utils/validateAuth'
 
 const initialValues = { fullName: '', email: '', username: '', password: '', confirmPassword: '' }
 
 export default function SignupForm({ onSubmit }) {
+  const location = useLocation()
   const [values, setValues] = useState(initialValues)
   const [errors, setErrors] = useState({})
   const [show, setShow] = useState({ password: false, confirmPassword: false })
@@ -80,7 +82,7 @@ export default function SignupForm({ onSubmit }) {
         {notice && <p className="mt-3 rounded-md border border-line bg-canvas-muted px-3 py-2.5 text-sm text-ink" role="status">{notice}</p>}
       </form>
       <SocialSignup />
-      <p className="mt-5 text-center text-sm text-ink-muted">Already have an account? <Link className="font-semibold text-ink-heading underline underline-offset-4" to="/login">Log in</Link></p>
+      <p className="mt-5 text-center text-sm text-ink-muted">Already have an account? <Link className="font-semibold text-ink-heading underline underline-offset-4" to={authLinkTo('/login', location)}>Log in</Link></p>
     </section>
   )
 }

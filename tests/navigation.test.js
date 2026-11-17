@@ -1,10 +1,21 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { safeReturnPath, pageTitle, isNavActive } from '../clientFront/src/lib/navigation.js'
+import { safeReturnPath, signInReturnPath, authLinkTo, pageTitle, isNavActive } from '../clientFront/src/lib/navigation.js'
 
 test('login returns to approved internal routes without allowing external redirects', () => {
-  for (const path of ['/tests', '/results', '/pyq', '/questions?pyq=true', '/attempts/abc-123/result']) assert.equal(safeReturnPath(path), path)
+  for (const path of ['/', '/#about', '/contact#account', '/tests', '/results', '/pyq', '/questions?pyq=true', '/attempts/abc-123/result']) assert.equal(safeReturnPath(path), path)
   for (const path of ['https://evil.test', '//evil.test', '/\\evil.test', '/login', '/tests\n', undefined]) assert.equal(safeReturnPath(path), '/questions')
+})
+
+test('auth entry and cross-auth links preserve the original path, filters and anchor', () => {
+  const origin = { pathname: '/questions/7', search: '?answer=show', hash: '#solution' }
+  const link = authLinkTo('/login', origin)
+  assert.equal(signInReturnPath({ ...link }), '/questions/7?answer=show#solution')
+  assert.equal(signInReturnPath(authLinkTo('/signup', link)), '/questions/7?answer=show#solution')
+  assert.equal(signInReturnPath({ pathname: '/login', state: { from: '/attempts/abc#question-2' } }), '/attempts/abc#question-2')
+  assert.equal(signInReturnPath({ pathname: '/questions', search: '?next=/results' }), '/questions?next=/results')
+  assert.equal(signInReturnPath({ pathname: '/login' }), '/')
+  assert.equal(signInReturnPath({ pathname: '/login', search: '?next=https://evil.test' }), '/')
 })
 
 test('page titles distinguish active attempts from results', () => {

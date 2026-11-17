@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { authLinkTo } from '../lib/navigation'
 import { ArrowRight, Clock3, FileQuestion, RefreshCw, ShieldCheck, Trophy } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
@@ -58,6 +59,7 @@ export default function TestCatalog() {
 }
 
 function TestCatalogPage() {
+  const location = useLocation()
   const { user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [response, setResponse] = useState({ items: [], page: 1, page_size: 12, total: 0, has_more: false })
@@ -109,7 +111,7 @@ function TestCatalogPage() {
 
   async function handleStart(test) {
     if (!user) {
-      navigate('/login', { state: { from: '/tests' } })
+      navigate(authLinkTo('/login', location))
       return
     }
     setStartingId(test.id)
@@ -152,7 +154,7 @@ function TestCatalogPage() {
         {!authLoading && !user && (
           <section className="mt-8 flex flex-col items-start justify-between gap-4 rounded-xl border border-info-border bg-info-bg p-5 sm:flex-row sm:items-center">
             <div><h2 className="font-semibold text-ink-heading">Sign in to browse and take tests</h2><p className="mt-1 text-sm text-ink-muted">Your test list, active attempts, and saved answers are tied to your account.</p></div>
-            <Button as={Link} to="/login" state={{ from: '/tests' }}>Sign in <ArrowRight size={16} /></Button>
+            <Button as={Link} to={authLinkTo('/login', location)}>Sign in <ArrowRight size={16} /></Button>
           </section>
         )}
 

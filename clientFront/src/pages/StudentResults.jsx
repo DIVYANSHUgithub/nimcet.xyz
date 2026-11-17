@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { authLinkTo } from '../lib/navigation'
 import { ArrowRight, BarChart3, Clock3, FileCheck2, LockKeyhole, RefreshCw, Trophy } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
@@ -23,6 +24,7 @@ export default function StudentResults() {
 }
 
 function StudentResultsPage() {
+  const location = useLocation()
   const { user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [dashboard, setDashboard] = useState(null)
@@ -79,7 +81,7 @@ function StudentResultsPage() {
         </div>
 
         {!authLoading && !user ? (
-          <section className="mt-7 rounded-2xl border border-info-border bg-info-bg p-6"><h2 className="font-semibold text-ink-heading">Sign in to view your results</h2><p className="mt-1 text-sm text-ink-muted">Your attempt history is private to your account.</p><Button as={Link} to="/login" state={{ from: '/results' }} className="mt-4">Sign in</Button></section>
+          <section className="mt-7 rounded-2xl border border-info-border bg-info-bg p-6"><h2 className="font-semibold text-ink-heading">Sign in to view your results</h2><p className="mt-1 text-sm text-ink-muted">Your attempt history is private to your account.</p><Button as={Link} to={authLinkTo('/login', location)} className="mt-4">Sign in</Button></section>
         ) : loading ? (
           <div className="mt-7 rounded-2xl border border-line bg-surface p-7 text-sm text-ink-muted" role="status">Loading your progress…</div>
         ) : error ? (

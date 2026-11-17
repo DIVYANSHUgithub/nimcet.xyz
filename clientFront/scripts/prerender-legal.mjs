@@ -13,6 +13,7 @@ import { legalLinks } from '../src/lib/legal.js'
 const projectRoot = fileURLToPath(new URL('../', import.meta.url))
 const template = await readFile(path.join(projectRoot, 'dist/index.html'), 'utf8')
 const server = await createServer({ root: projectRoot, configFile: false, envDir: false,
+  cacheDir: 'node_modules/.vite-legal-prerender',
   optimizeDeps: { noDiscovery: true, include: [] },
   plugins: [react()], resolve: { dedupe: ['react', 'react-dom'] },
   server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' })

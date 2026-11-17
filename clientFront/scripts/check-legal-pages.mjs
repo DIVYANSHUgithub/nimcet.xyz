@@ -19,6 +19,7 @@ const errors = []
 const originalError = console.error
 console.error = (...args) => { errors.push(args.map(String).join(' ')); originalError(...args) }
 const server = await createServer({ configFile: false, envDir: false,
+  cacheDir: 'node_modules/.vite-legal-checks',
   optimizeDeps: { noDiscovery: true, include: [] },
   plugins: [react()], resolve: { dedupe: ['react', 'react-dom'] },
   server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' })

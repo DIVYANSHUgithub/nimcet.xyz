@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { Menu, Search, X } from 'lucide-react'
 import Container from './ui/Container'
 import Button from './ui/Button'
-import { isNavActive } from '../lib/navigation'
+import { authLinkTo, isNavActive } from '../lib/navigation'
 import { cn } from '../lib/cn'
 import Toast from './Toast'
 import { useAuth } from '../context/useAuth'
@@ -18,7 +18,8 @@ const navLinks = [
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const { pathname } = useLocation()
+  const location = useLocation()
+  const { pathname } = location
   const { user, signOut } = useAuth()
   const [notice, setNotice] = useState('')
   const menuButtonRef = useRef(null)
@@ -88,7 +89,7 @@ export default function Navbar() {
               Login
             </span>
           ) : (
-            <Button as={Link} to="/login" variant="ghost" size="sm">
+            <Button as={Link} to={authLinkTo('/login', location)} variant="ghost" size="sm">
               Login
             </Button>
           )}
@@ -100,7 +101,7 @@ export default function Navbar() {
               Sign Up
             </span>
           ) : !user ? (
-            <Link to="/signup" className="hidden min-h-9 items-center rounded-md border border-brand bg-brand px-4 text-[0.8125rem] font-semibold text-white transition hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand md:inline-flex">
+            <Link to={authLinkTo('/signup', location)} className="hidden min-h-9 items-center rounded-md border border-brand bg-brand px-4 text-[0.8125rem] font-semibold text-white transition hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand md:inline-flex">
               Sign Up
             </Link>
           ) : null}
@@ -146,7 +147,7 @@ export default function Navbar() {
           <Link to="/#about" className="border-b border-line py-3 text-[0.9375rem] font-medium text-ink" onClick={() => setMenuOpen(false)}>About</Link>
           {!user && !isLoginPage && (
             <Link
-              to="/login"
+              to={authLinkTo('/login', location)}
               className="border-b border-line py-3 text-[0.9375rem] font-medium text-ink"
               onClick={() => setMenuOpen(false)}
             >
@@ -155,7 +156,7 @@ export default function Navbar() {
           )}
           {!user && !isSignupPage && (
             <Link
-              to="/signup"
+              to={authLinkTo('/signup', location)}
               className="py-3 text-[0.9375rem] font-medium text-ink"
               onClick={() => setMenuOpen(false)}
             >

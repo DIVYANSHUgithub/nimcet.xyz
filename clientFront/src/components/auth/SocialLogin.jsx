@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FaGoogle, FaGithub } from 'react-icons/fa'
 import { getSupabaseConfigError, supabase } from '../../lib/supabase'
+import { useLocation } from 'react-router-dom'
+import { signInReturnPath } from '../../lib/navigation'
+import { clearOAuthReturn, rememberOAuthReturn } from '../../lib/authReturn'
 
 const providers = [
   { id: 'google', label: 'Google', Icon: FaGoogle },
@@ -8,18 +11,39 @@ const providers = [
 ]
 
 export default function SocialLogin() {
+  const location = useLocation()
   const [loadingProvider, setLoadingProvider] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const activeRequest = useRef(null)
+
+  useEffect(() => {
+    const handlePageShow = (event) => {
+      if (!event.persisted) return
+      // Browser Back can restore the entire page, including its pending UI state.
+      activeRequest.current = null
+      clearOAuthReturn()
+      setLoadingProvider('')
+      setErrorMessage('')
+    }
+    window.addEventListener('pageshow', handlePageShow)
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow)
+      activeRequest.current = null
+    }
+  }, [])
 
   const handleSocialLogin = async (provider) => {
-    if (loadingProvider) return
+    if (activeRequest.current) return
     setErrorMessage('')
     if (!supabase) {
       setErrorMessage(getSupabaseConfigError().message)
       return
     }
 
+    const request = Symbol(provider)
+    activeRequest.current = request
     setLoadingProvider(provider)
+    rememberOAuthReturn(signInReturnPath(location))
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -27,9 +51,17 @@ export default function SocialLogin() {
       })
       if (error) throw error
     } catch (error) {
+      if (activeRequest.current !== request) return
+      clearOAuthReturn()
       console.error(`${provider} sign in failed:`, error)
       setErrorMessage(error?.message || `Unable to continue with ${provider}. Please try again.`)
-      setLoadingProvider('')
+    } finally {
+      // OAuth preparation may finish without leaving this page (e.g. navigation
+      // was cancelled). Never leave the buttons waiting for a redirect callback.
+      if (activeRequest.current === request) {
+        activeRequest.current = null
+        setLoadingProvider('')
+      }
     }
   }
 

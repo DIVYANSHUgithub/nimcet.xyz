@@ -1,6 +1,16 @@
 export function safeReturnPath(value, fallback = '/questions') {
   if (typeof value !== 'string' || value.includes('\\') || [...value].some(character => character.charCodeAt(0) <= 32)) return fallback
-  return /^\/(?:questions(?:\/[^?#]*)?|tests|results|pyq|attempts\/[a-zA-Z0-9-]+(?:\/result)?)(?:[?#].*)?$/.test(value) ? value : fallback
+  return /^\/(?:questions(?:\/[^?#]*)?|tests|results|pyq|privacy-policy|terms|contact|attempts\/[a-zA-Z0-9-]+(?:\/result)?)?(?:[?#].*)?$/.test(value) ? value : fallback
+}
+
+export function signInReturnPath(location) {
+  const explicit = ['/login', '/signup'].includes(location?.pathname)
+    ? location?.state?.from ?? new URLSearchParams(location?.search).get('next') : null
+  return safeReturnPath(explicit ?? `${location?.pathname || '/'}${location?.search || ''}${location?.hash || ''}`, '/')
+}
+
+export function authLinkTo(pathname, location) {
+  return { pathname, search: `?next=${encodeURIComponent(signInReturnPath(location))}` }
 }
 
 export function pageTitle(pathname) {

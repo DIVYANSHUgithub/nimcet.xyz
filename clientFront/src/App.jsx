@@ -4,6 +4,7 @@ import ConnectionStatus from './components/ConnectionStatus'
 import AppBoundary from './components/AppBoundary'
 import { RequireSession, RouteAccessibility } from './components/RouteAccess'
 import { AuthProvider } from './context/AuthContext'
+import OAuthReturn from './components/OAuthReturn'
 import { studentFeatures } from './lib/studentFeatures'
 
 const Home = lazy(() => import('./pages/Home'))
@@ -37,6 +38,7 @@ function App() {
   return (
     <AppBoundary><BrowserRouter>
       <AuthProvider>
+        <OAuthReturn />
         <RouteAccessibility />
         <ConnectionStatus />
         <Suspense fallback={<div className="grid min-h-svh place-items-center text-sm text-ink-muted" role="status">Loading page…</div>}>
@@ -47,11 +49,11 @@ function App() {
             <Route path="/contact" element={<Contact />} />
             <Route path="/questions" element={<QuestionBank />} />
             <Route path="/questions/:questionId" element={<QuestionDetail />} />
-            <Route path="/tests" element={<RequireSession><TestCatalog /></RequireSession>} />
+            <Route path="/tests" element={<TestCatalog />} />
             <Route path="/attempts/:attemptId" element={<RequireSession><TestAttempt /></RequireSession>} />
             <Route path="/attempts/:attemptId/result" element={<RequireSession><AttemptResult /></RequireSession>} />
             {studentFeatures.pyq && <Route path="/pyq" element={<PYQ />} />}
-            <Route path="/results" element={<RequireSession><StudentResults /></RequireSession>} />
+            <Route path="/results" element={<StudentResults />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/reset-password" element={<ResetPassword />} />

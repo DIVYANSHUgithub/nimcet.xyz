@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { authLinkTo } from '../lib/navigation'
 import { X } from 'lucide-react'
 import Button from './ui/Button'
 
 export default function LoginPrompt({ message, onClose }) {
+  const location = useLocation()
   const closeRef = useRef(null)
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export default function LoginPrompt({ message, onClose }) {
         </h3>
         <p className="mb-5 text-[0.9375rem] leading-relaxed text-ink-muted">{message}</p>
         <div className="flex gap-3">
-          <Button as={Link} to="/login" variant="primary">
+          <Button as={Link} to={authLinkTo('/login', location)} variant="primary">
             Login
           </Button>
           <Button type="button" variant="secondary" onClick={onClose}>

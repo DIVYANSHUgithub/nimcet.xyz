@@ -6,7 +6,8 @@ import LoginForm from '../components/auth/LoginForm'
 import Toast from '../components/Toast'
 import SignInBenefits from '../components/auth/SignInBenefits'
 import { getSupabaseConfigError, supabase } from '../lib/supabase'
-import { safeReturnPath } from '../lib/navigation'
+import { signInReturnPath } from '../lib/navigation'
+import { clearOAuthReturn } from '../lib/authReturn'
 import { useAuth } from '../context/useAuth'
 import { isValidEmail } from '../utils/validateAuth'
 
@@ -24,10 +25,11 @@ export default function Login() {
       return
     }
     setIsLoading(true)
+    clearOAuthReturn()
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
-      navigate(safeReturnPath(location.state?.from), { replace: true })
+      navigate(signInReturnPath(location), { replace: true })
     } catch (error) {
       console.error('Login failed:', error)
       setToast(error.message || 'Unable to sign in. Check your email and password.')

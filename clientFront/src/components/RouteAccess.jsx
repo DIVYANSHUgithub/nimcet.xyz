@@ -7,7 +7,7 @@ export function RequireSession({ children }) {
   const { user, loading } = useAuth()
   const location = useLocation()
   if (loading) return <main className="app-recovery" role="status">Checking your sign-in…</main>
-  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search + location.hash }} />
   return children
 }
 

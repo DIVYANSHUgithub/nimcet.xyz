@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { authLinkTo } from '../../lib/navigation'
 import SocialLogin from './SocialLogin'
 import { validateLogin } from '../../utils/validateAuth'
 
 export default function LoginForm({ onSubmit, onForgotPassword, isLoading, isRecoveryLoading }) {
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -51,7 +53,7 @@ export default function LoginForm({ onSubmit, onForgotPassword, isLoading, isRec
         <button type="submit" className="min-h-12 w-full rounded-md bg-brand px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60" disabled={isLoading}>{isLoading ? 'Logging in…' : 'Log in'}</button>
       </form>
       <SocialLogin />
-      <p className="mt-6 text-center text-sm text-ink-muted">Don&apos;t have an account? <Link to="/signup" className="font-semibold text-ink-heading underline underline-offset-2 hover:text-ink-muted">Sign up</Link></p>
+      <p className="mt-6 text-center text-sm text-ink-muted">Don&apos;t have an account? <Link to={authLinkTo('/signup', location)} className="font-semibold text-ink-heading underline underline-offset-2 hover:text-ink-muted">Sign up</Link></p>
     </section>
   )
 }
