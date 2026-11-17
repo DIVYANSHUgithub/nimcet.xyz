@@ -3,6 +3,7 @@ import { backendGet } from '../../../clientFront/src/lib/backendApi.js'
 import { getSupabaseConfigError, isSupabaseConfigured, supabase } from '../../../clientFront/src/lib/supabase.js'
 import { useAuth } from '../../../clientFront/src/context/useAuth.js'
 import AdminWorkspace from './AdminWorkspace'
+import { legalDetails, legalLinks } from '../../../clientFront/src/lib/legal.js'
 import { hasAdminAccess } from './adminAccess.js'
 
 export default function AdminApp() {
@@ -122,6 +123,9 @@ export default function AdminApp() {
           <button className="admin-secondary" type="button" onClick={handleSignOut}>Sign out</button>
         </div>}
         <p className="admin-security-note">This interface does not use signup metadata or browser state to grant roles.</p>
+        <nav className="admin-legal-links" aria-label="Legal and support">
+          {legalLinks.map(link => <a key={link.to} href={`${legalDetails.origin}${link.to}`}>{link.label}</a>)}
+        </nav>
       </section>
     </main>
   )

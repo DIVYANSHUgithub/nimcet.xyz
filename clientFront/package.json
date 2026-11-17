@@ -7,12 +7,13 @@
   "scripts": {
     "dev": "vite",
     "admin:dev": "npm --prefix ../admin/adminFront run dev",
-    "build": "vite build",
-    "build:deploy": "node scripts/check-deployment-env.mjs && vite build",
+    "build": "vite build && node scripts/prerender-legal.mjs",
+    "build:deploy": "node scripts/check-deployment-env.mjs && npm run build",
     "admin:build": "npm --prefix ../admin/adminFront run build",
     "lint": "eslint .",
     "test": "node --test --test-concurrency=1 ../tests/*.test.js",
     "test:workflow": "node scripts/check-student-workflow.mjs",
+    "test:legal": "node scripts/check-legal-pages.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -1,0 +1,35 @@
+{
+  "reviewDate": "2026-11-18",
+  "publicationStatus": "operator-and-legal-review-required",
+  "note": "Internal decisions only. This file is not imported by the frontend. Null means unresolved, not exempt or not applicable.",
+  "statutoryGrievanceOfficer": {
+    "applicableRequirementsReviewed": false,
+    "appointedName": null,
+    "designation": null,
+    "contactDetails": null
+  },
+  "customerCareTelephone": null,
+  "postalAddressAdequacyReviewed": false,
+  "payments": {
+    "provider": null,
+    "merchantTerms": null,
+    "refundRequestWindow": null,
+    "refundProcessingTimeline": null,
+    "eligibilityAfterAccessAuthorisation": null,
+    "cancellationConditions": null,
+    "operatorDirection": "Review failed payments and similar payment or access issues; review refund requests after successful payment and course authorisation. Preserve mandatory consumer remedies."
+  },
+  "retention": {
+    "accounts": null,
+    "testHistory": null,
+    "supportMessages": null,
+    "administrativeAudit": null,
+    "providerLogs": null,
+    "providerBackups": null,
+    "futurePaymentRecords": null
+  },
+  "backendHostAndLogSettings": null,
+  "googleAudienceAndVerificationStatus": null,
+  "childConsentAndAgeHandlingReviewed": false,
+  "deletionProcedureRehearsedWithSubmittedResults": false
+}

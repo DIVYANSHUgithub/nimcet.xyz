@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
+@import "./components/legal/legal.css";
 
 /*
   Design tokens for nimcet.xyz.

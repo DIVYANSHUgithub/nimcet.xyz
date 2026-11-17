@@ -1,11 +1,13 @@
 import { Link } from 'react-router-dom'
 import Container from './ui/Container'
+import { legalLinks } from '../lib/legal'
 
 const footerLinks = [
   { label: 'About', to: '/#about' },
   { label: 'Question Bank', to: '/questions' },
   { label: 'Log in', to: '/login' },
   { label: 'Sign up', to: '/signup' },
+  ...legalLinks,
 ]
 
 export default function Footer() {
@@ -19,7 +21,7 @@ export default function Footer() {
         <nav className="flex flex-wrap gap-x-5 gap-y-2" aria-label="Footer navigation">
           {footerLinks.map((link) => <Link key={link.label} to={link.to} className="text-xs text-ink-muted transition-colors hover:text-ink-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">{link.label}</Link>)}
         </nav>
-        <p className="text-xs text-ink-muted">Social profiles are not configured.</p>
+        <a href="mailto:nimcet.xyz@gmail.com" className="text-xs text-ink-muted hover:text-ink-heading">nimcet.xyz@gmail.com</a>
       </Container>
     </footer>
   )

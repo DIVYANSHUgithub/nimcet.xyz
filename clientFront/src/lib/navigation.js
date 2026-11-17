@@ -4,6 +4,8 @@ export function safeReturnPath(value, fallback = '/questions') {
 }
 
 export function pageTitle(pathname) {
+  const legalTitle = { '/privacy-policy': 'Privacy Policy', '/terms': 'Terms of Service', '/contact': 'Contact Us' }[pathname.replace(/\/$/, '')]
+  if (legalTitle) return legalTitle
   if (/^\/attempts\/[^/]+\/result$/.test(pathname)) return 'Attempt result'
   if (pathname.startsWith('/attempts/')) return 'Test attempt'
   if (pathname.startsWith('/questions/')) return 'Practice question'

@@ -17,6 +17,9 @@ const TestAttempt = lazy(() => import('./pages/TestAttempt'))
 const AttemptResult = lazy(() => import('./pages/AttemptResult'))
 const StudentResults = lazy(() => import('./pages/StudentResults'))
 const PYQ = lazy(() => import('./pages/PYQ'))
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
+const Terms = lazy(() => import('./pages/Terms'))
+const Contact = lazy(() => import('./pages/Contact'))
 
 function NotFound() {
   return (
@@ -39,6 +42,9 @@ function App() {
         <Suspense fallback={<div className="grid min-h-svh place-items-center text-sm text-ink-muted" role="status">Loading page…</div>}>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/contact" element={<Contact />} />
             <Route path="/questions" element={<QuestionBank />} />
             <Route path="/questions/:questionId" element={<QuestionDetail />} />
             <Route path="/tests" element={<RequireSession><TestCatalog /></RequireSession>} />

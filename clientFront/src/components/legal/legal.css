@@ -1,0 +1,11 @@
+.legal-page a { color: var(--color-ink-heading); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.legal-page a:hover { color: var(--color-accent); }
+.legal-page a:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; border-radius: 2px; }
+.legal-page a[aria-current="page"] { font-weight: 700; }
+.legal-copy { font-size: 1rem; line-height: 1.85; overflow-wrap: anywhere; }
+.legal-copy section { margin-top: 2rem; scroll-margin-top: 6rem; }
+.legal-copy h2 { color: var(--color-ink-heading); font-size: 1.25rem; font-weight: 700; line-height: 1.4; }
+.legal-copy h3 { color: var(--color-ink-heading); font-weight: 600; margin-top: 1rem; }
+.legal-copy p, .legal-copy ul { margin-top: .8rem; }
+.legal-copy ul { list-style: disc; padding-left: 1.4rem; }
+.legal-copy li + li { margin-top: .4rem; }

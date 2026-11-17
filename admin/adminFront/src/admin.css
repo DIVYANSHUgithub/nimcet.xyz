@@ -43,6 +43,9 @@ h1 { margin: 0; font-size: 28px; line-height: 1.2; }
 .admin-error { margin: 0; color: #a32424; font-size: 13px; line-height: 1.5; }
 .admin-session-actions { display: grid; justify-items: start; gap: 10px; margin-top: 18px; }
 .admin-security-note { margin: 24px 0 0; border-top: 1px solid #e8edf3; padding-top: 15px; color: #68778c; font-size: 11px; line-height: 1.5; }
+.admin-legal-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; font-size: 12px; }
+.admin-legal-links a { color: #233d72; text-underline-offset: 3px; }
+.admin-legal-links a:focus-visible { outline: 3px solid #9bb6f3; outline-offset: 3px; }
 
 @media (max-width: 480px) { .admin-panel { padding: 26px 20px; } }
 
