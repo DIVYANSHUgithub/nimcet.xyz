@@ -4,7 +4,19 @@ function isImageUrl(value) {
     /\.(png|jpe?g|gif|webp|svg|avif)(?:[?#]|$)/i.test(value.trim())
 }
 
-function normalizeOption(option) {
+export function inlineImageUrl(block) {
+  if (!block || !['image', 'legacy_image'].includes(block.type) || block.media_id || typeof block.url !== 'string') return ''
+  const value = block.url.trim()
+  if (!/^https?:\/\//i.test(value)) return ''
+  try {
+    const url = new URL(value)
+    return url.hostname && !url.username && !url.password ? value : ''
+  } catch {
+    return ''
+  }
+}
+
+export function normalizeOption(option) {
   if (typeof option === 'string') {
     const value = option.trim()
     // Legacy image URLs may be stored directly in options. Keep ordinary text strings
@@ -48,7 +60,7 @@ function parseOptions(value) {
 export function validateQuestion(question = {}) {
   const issues = []
   if (!String(question.id ?? '').trim()) issues.push('missing-id')
-  if (!String(question.question ?? '').trim() && !question.questionImageUrl) issues.push('missing-question')
+  if (!String(question.question ?? '').trim() && !question.questionImageUrl && !question.statementBlocks?.length) issues.push('missing-question')
   const options = Array.isArray(question.options) ? question.options : []
   if (options.length < 2 || options.some((option) => !hasOptionContent(option))) issues.push('missing-options')
   if (
@@ -65,6 +77,8 @@ export function validateQuestion(question = {}) {
 export function normalizeQuestion(row = {}) {
   if (row == null || typeof row !== 'object') row = {}
   const options = parseOptions(row.options)
+  const rawStatement = row.question?.blocks ?? row.question?.statement ?? row.question
+  const statementBlocks = row.statement_blocks ?? (Array.isArray(rawStatement) ? rawStatement : rawStatement?.type ? [rawStatement] : [])
   const correctOptionIndex = Number.isInteger(row.correct_option)
     ? row.correct_option
     : Number.NaN
@@ -78,10 +92,10 @@ export function normalizeQuestion(row = {}) {
     topic: String(row.topic ?? ''),
     difficulty: row.difficulty == null ? null : String(row.difficulty),
     type: options.length ? 'MCQ' : 'Unspecified',
-    question: String(row.question ?? ''),
-    questionImageUrl: String(row.question_image_url ?? row.questionImageUrl ?? ''),
+    question: typeof row.question === 'string' ? row.question : String(row.question?.text ?? ''),
+    questionImageUrl: String(row.question_image_url ?? row.questionImageUrl ?? row.question?.image_url ?? ''),
     options,
-    statementBlocks: row.statement_blocks ?? [],
+    statementBlocks,
     optionIds: row.option_ids ?? options.map((o, i) => o?.id ?? `option-${i}`),
     correctOptionIndex,
     correctAnswer: Number.isInteger(correctOptionIndex) ? options[correctOptionIndex] ?? '' : '',

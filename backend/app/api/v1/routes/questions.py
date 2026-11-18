@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.db.database import DatabaseUnavailable
 from app.db.questions import QuestionsRepository
+from app.domain.question_content import option_ids, statement_blocks, statement_text
 from app.schemas.questions import QuestionFacet, QuestionFacets, QuestionItem, QuestionPage
 
 router = APIRouter()
@@ -18,7 +19,9 @@ def public_item(item):
         item['option_ids'] = [o['id'] for o in doc['options']]
         item['options'] = [{'id':o['id'],'blocks':o['blocks']} for o in doc['options']]
     else:
-        item['option_ids'] = [f'option-{i}' for i in range(len(item.get('options') or []))]
+        item['statement_blocks'] = statement_blocks(item.get('question'))
+        item['option_ids'] = option_ids(item.get('options'))
+    item['question'] = statement_text(item.get('question'), item['statement_blocks'])
     # Response model deliberately has no answer/explanation/document fields.
     return QuestionItem.model_validate(item)
 

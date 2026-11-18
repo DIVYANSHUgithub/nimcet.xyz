@@ -397,13 +397,13 @@ function TestAttemptPage() {
 
           <section className="min-h-[22rem] rounded-2xl border border-line bg-surface p-5 shadow-card sm:p-8" aria-labelledby="question-heading">
             <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{current.section_title} <span className="px-1 text-line-strong">/</span> Q{currentIndex + 1}</p>
-            <h1 id="question-heading" className="mt-5 text-lg font-medium leading-8 text-ink-heading sm:text-xl">{current.statement_blocks?.length ? <RichContent blocks={current.statement_blocks} /> : <MathText text={current.question} />}</h1>
+            <h1 id="question-heading" className="mt-5 text-lg font-medium leading-8 text-ink-heading sm:text-xl">{current.statement_blocks?.length ? <RichContent blocks={current.statement_blocks} attemptId={attemptId} /> : <MathText text={current.question} />}</h1>
             <div className="mt-7 grid gap-3">
               {current.options.map((option, index) => {
                 const isSelected = selectedOption === option.id
                 return <button key={option.id} type="button" onClick={() => selectOption(option.id)} disabled={actionsPaused} className={`group flex min-h-[3.75rem] w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60 ${isSelected ? 'border-option-selected-border bg-option-selected' : 'border-line bg-surface hover:border-line-strong hover:bg-option-hover'}`} aria-pressed={isSelected}>
                   <span className={`grid size-7 shrink-0 place-items-center rounded-full border text-xs font-semibold ${isSelected ? 'border-brand bg-brand text-white' : 'border-line-strong text-ink-muted group-hover:border-accent'}`}>{String.fromCharCode(65 + index)}</span>
-                  <span className="min-w-0 flex-1 pt-0.5 text-sm leading-6 text-ink"><QuestionOptionContent option={option.content} /></span>
+                  <span className="min-w-0 flex-1 pt-0.5 text-sm leading-6 text-ink"><QuestionOptionContent option={option.content} attemptId={attemptId} /></span>
                   {isSelected && <Check size={17} className="mt-1 shrink-0 text-accent" aria-hidden="true" />}
                 </button>
               })}

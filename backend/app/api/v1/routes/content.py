@@ -1,3 +1,4 @@
+import json
 from uuid import UUID, uuid4
 from io import BytesIO
 import warnings
@@ -11,6 +12,7 @@ from app.api.dependencies import require_roles
 from app.core.security import Principal
 from app.db.content import CATALOG, ContentConflict, ContentNotFound, ContentRepository, audit
 from app.db.database import DatabaseUnavailable
+from app.domain.question_content import option_ids
 from app.schemas.content import CatalogWrite, PracticeAnswer, QuestionWrite
 from sqlalchemy import text
 from PIL import Image, UnidentifiedImageError
@@ -106,7 +108,7 @@ def update_question(question_id: int, payload: QuestionWrite, request: Request, 
 
 def practice_feedback(row, option_id):
     doc = row.get('content_document')
-    ids = [o['id'] for o in doc['options']] if doc else [f'option-{i}' for i in range(len(row['options']))]
+    ids = [o['id'] for o in doc['options']] if doc else option_ids(row['options'])
     if option_id is not None and option_id not in ids:
         raise HTTPException(422, detail={'code':'invalid_option','message':'Select an option belonging to this question.'})
     index = ids.index(doc['correct_option_id']) if doc else row['correct_option']
@@ -224,14 +226,7 @@ async def upload_media(request: Request, principal: Principal = Depends(require_
 @router.get('/media/{media_id}')
 def read_media(media_id: UUID, request: Request):
     repository(request)
-    historical = (
-        " OR EXISTS (SELECT 1 FROM public.test_questions tq JOIN public.test_sections s ON s.id=tq.test_section_id "
-        "JOIN public.test_versions v ON v.id=s.test_version_id JOIN public.tests t ON t.id=v.test_id "
-        "WHERE t.visibility='public' AND v.status='published' AND ("
-        "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(NULLIF(to_jsonb(tq)->'question_blocks_snapshot','null'::jsonb),'[]'::jsonb)) b WHERE b->>'media_id'=:needle) OR "
-        "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(NULLIF(to_jsonb(tq)->'explanation_blocks_snapshot','null'::jsonb),'[]'::jsonb)) b WHERE b->>'media_id'=:needle) OR "
-        "EXISTS (SELECT 1 FROM jsonb_array_elements(tq.options_snapshot) o,LATERAL jsonb_array_elements(o->'blocks') b WHERE b->>'media_id'=:needle)))"
-    ) if request.app.state.settings.phase5_enabled else ''
+    # Snapshot images are served by the attempt route, where review rules apply.
     def lookup():
         with request.app.state.database.read_only_transaction() as c:
             return c.execute(text(
@@ -240,8 +235,20 @@ def read_media(media_id: UUID, request: Request):
                 "EXISTS (SELECT 1 FROM jsonb_array_elements(q.content_document->'statement') b WHERE b->>'media_id'=:needle) OR "
                 "EXISTS (SELECT 1 FROM jsonb_array_elements(q.content_document->'explanation') b WHERE b->>'media_id'=:needle) OR "
                 "EXISTS (SELECT 1 FROM jsonb_array_elements(q.content_document->'options') o, "
-                "LATERAL jsonb_array_elements(o->'blocks') b WHERE b->>'media_id'=:needle)))" + historical + ")"
-            ),dict(id=media_id,needle=str(media_id))).mappings().first()
+                "LATERAL jsonb_array_elements(o->'blocks') b WHERE b->>'media_id'=:needle) OR "
+                "(q.content_document IS NULL AND ("
+                "to_jsonb(q.question) @> CAST(:image AS jsonb) OR "
+                "to_jsonb(q.question) @> CAST(:blocks AS jsonb) OR "
+                "to_jsonb(q.question) @> CAST(:statement AS jsonb) OR "
+                "to_jsonb(q.question) @> CAST(:single AS jsonb) OR "
+                "q.options @> CAST(:option AS jsonb))))))"
+            ), references).mappings().first()
+    image = {'type': 'image', 'media_id': str(media_id)}
+    references = dict(
+        id=media_id, needle=str(media_id), image=json.dumps([image]),
+        blocks=json.dumps({'blocks': [image]}), statement=json.dumps({'statement': [image]}),
+        single=json.dumps(image), option=json.dumps([{'blocks': [image]}]),
+    )
     row=translate(lookup)
     if row is None:
         raise HTTPException(404)
@@ -252,6 +259,10 @@ def read_media(media_id: UUID, request: Request):
 @router.get('/admin/media/{media_id}')
 def preview_media(media_id: UUID, request: Request, principal: Principal = Depends(require_roles(*AUTHORS))):
     repository(request)
+    return read_registered_media(media_id, request)
+
+
+def read_registered_media(media_id: UUID, request: Request):
     def lookup():
         with request.app.state.database.read_only_transaction() as c:
             return c.execute(text('SELECT object_path,content_type FROM public.question_media WHERE id=:id'), {'id':media_id}).mappings().first()

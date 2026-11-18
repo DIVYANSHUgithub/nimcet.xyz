@@ -137,6 +137,46 @@ def _auth():
     return {"Authorization": "Bearer test-access-token"}
 
 
+def test_attempt_images_use_attempt_ownership_and_review_policy(monkeypatch):
+    from fastapi import Response
+    from app.api.v1.routes import test_engine
+
+    diagram = '11111111-2222-4333-8444-000000000001'
+    option = '11111111-2222-4333-8444-000000000002'
+    explanation = '11111111-2222-4333-8444-000000000003'
+
+    def image(media_id):
+        return {'type': 'image', 'media_id': media_id, 'alt': 'A diagram'}
+
+    class Engine(_TestEngine):
+        def get_attempt(self, **kwargs):
+            payload = super().get_attempt(**kwargs)
+            question = payload['questions'][0]
+            question['statement_blocks'] = [image(diagram)]
+            question['options'][0]['content'] = {'blocks': [image(option)]}
+            return payload
+
+        def get_attempt_review(self, **kwargs):
+            if not self.review_released:
+                raise AttemptNotFound
+            payload = self.get_attempt(**kwargs)
+            payload['questions'][0]['explanation_blocks'] = [image(explanation)]
+            return payload
+
+    monkeypatch.setattr(test_engine, 'read_registered_media', lambda *_: Response(media_type='image/png'))
+    engine = Engine()
+    engine.review_released = False
+    media = '/api/v1/attempts/22222222-2222-4222-8222-222222222222/media/'
+    with _client(engine) as client:
+        for media_id in (diagram, option):
+            assert client.get(media + media_id, headers=_auth()).headers['content-type'] == 'image/png'
+        assert client.get(media + diagram, headers={'Authorization': 'Bearer other-student'}).status_code == 404
+        assert client.get(media + explanation, headers=_auth()).status_code == 404
+        assert client.get(media + explanation + '?review=true', headers=_auth()).status_code == 404
+        engine.review_released = True
+        assert client.get(media + explanation + '?review=true', headers=_auth()).status_code == 200
+
+
 @pytest.mark.parametrize('role', ['student', 'editor', 'test_manager', 'administrator', 'super_administrator'])
 def test_each_app_role_can_practice_but_cannot_read_another_users_attempt(role):
     repository = _TestEngine()

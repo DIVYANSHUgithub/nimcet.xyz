@@ -1,6 +1,9 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.api.dependencies import get_current_principal
+from app.api.v1.routes.content import read_registered_media
 from app.db.database import DatabaseUnavailable
 from app.db.test_engine import AttemptNotFound, TestEngineRepository
 from app.domain.test_engine import TestEngineConflict, TestEngineForbidden
@@ -132,6 +135,37 @@ def get_attempt_review(
     except (DatabaseUnavailable, AttemptNotFound, ValueError) as exc:
         raise _handle_domain_error(exc) from None
     return AttemptReviewResponse.model_validate(payload)
+
+
+@attempts_router.get("/{attempt_id}/media/{media_id}")
+def attempt_media(
+    attempt_id: str,
+    media_id: UUID,
+    request: Request,
+    review: bool = False,
+    principal=Depends(get_current_principal),
+):
+    repo = _repository(request)
+    load = repo.get_attempt_review if review else repo.get_attempt
+    try:
+        payload = load(attempt_id=attempt_id, user_id=principal.user_id)
+    except (DatabaseUnavailable, AttemptNotFound, TestEngineForbidden, TestEngineConflict) as exc:
+        raise _handle_domain_error(exc) from None
+    target = str(media_id)
+    for question in payload['questions']:
+        groups = [question.get('statement_blocks', [])]
+        if review:
+            groups.append(question.get('explanation_blocks', []))
+        for option in question['options']:
+            if isinstance(option['content'], dict):
+                groups.append(option['content'].get('blocks', []))
+        if any(
+            isinstance(block, dict) and block.get('type') == 'image' and block.get('media_id') == target
+            for blocks in groups if isinstance(blocks, list)
+            for block in blocks
+        ):
+            return read_registered_media(media_id, request)
+    raise HTTPException(404)
 
 
 @attempts_router.put("/{attempt_id}/answers/{attempt_question_id}", response_model=SaveAnswerResponse)

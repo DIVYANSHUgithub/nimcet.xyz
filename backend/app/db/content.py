@@ -4,6 +4,7 @@ from uuid import uuid4
 from sqlalchemy import text
 
 from app.db.database import Database
+from app.domain.question_content import statement_blocks, statement_text
 from app.schemas.content import QuestionWrite
 
 
@@ -69,10 +70,11 @@ class ContentRepository:
         with self.database.read_only_transaction() as c:
             rows = c.execute(text(
                 "SELECT id,question,status,editorial_state,revision,subject,topic FROM public.questions "
-                "WHERE position(lower(:search) in lower(question))>0 AND (:state='' OR editorial_state=:state) "
+                "WHERE (:search='' OR position(lower(:search) in lower(to_jsonb(question) #>> '{}'))>0) "
+                "AND (:state='' OR editorial_state=:state) "
                 "AND (:exam='' OR exam=:exam) AND (:subject='' OR subject=:subject) ORDER BY id DESC LIMIT 30 OFFSET :offset"
             ), dict(search=search,state=state,exam=exam,subject=subject, offset=(page - 1)*30)).mappings().all()
-            return [dict(r) for r in rows]
+            return [dict(r, question=statement_text(r['question'], statement_blocks(r['question']))) for r in rows]
 
     def get(self, question_id, public=False):
         with self.database.read_only_transaction() as c:
@@ -82,6 +84,8 @@ class ContentRepository:
             if row is None:
                 raise ContentNotFound
             result = dict(row)
+            result['statement_blocks'] = statement_blocks(result['question'])
+            result['question'] = statement_text(result['question'], result['statement_blocks'])
             if result.get('content_document'):
                 result['content_document']['occurrences'] = [dict(o) for o in c.execute(text(
                     'SELECT exam,year,section,position,source FROM public.question_occurrences WHERE question_id=:id ORDER BY year,exam,section,position'
@@ -95,6 +99,7 @@ class ContentRepository:
         # Keep legacy fields available for existing readers and test snapshots.
         params = payload.model_dump(exclude={'document', 'expected_revision', 'state'})
         params.update(document=json.dumps({k:v for k,v in doc.items() if k != 'occurrences'}), question=plain(doc['statement']) or '[Illustrated question]',
+                      statement=json.dumps(doc['statement']),
                       options=json.dumps([{'id': o['id'], 'text': plain(o['blocks']), 'blocks': o['blocks']} for o in doc['options']]),
                       correct_option=next(i for i,o in enumerate(doc['options']) if o['id']==doc['correct_option_id']),
                       explanation=plain(doc['explanation']), state=payload.state,
@@ -132,6 +137,12 @@ class ContentRepository:
             columns = ['exam','exam_year','section','question_number','question','options','correct_option',
                        'explanation','subject','topic','difficulty','source','subtopic_id']
             values = {col: f'CAST(:{col} AS jsonb)' if col=='options' else f':{col}' for col in columns}
+            # Match the actual column type on both text and JSONB installations.
+            values['question'] = (
+                "(jsonb_populate_record(NULL::public.questions, jsonb_build_object('question', "
+                "CASE WHEN pg_typeof((NULL::public.questions).question) = 'jsonb'::regtype "
+                "THEN CAST(:statement AS jsonb) ELSE to_jsonb(CAST(:question AS text)) END))).question"
+            )
             if question_id is None:
                 if payload.expected_revision != 0:
                     raise ContentConflict

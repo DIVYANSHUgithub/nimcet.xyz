@@ -211,7 +211,9 @@ class OperationsRepository:
             row=c.execute(text('SELECT id FROM public.question_media WHERE id=:id FOR UPDATE'),{'id':media_id}).first()
             if row is None: raise ContentNotFound
             if payload.archived:
-                used=c.execute(text("SELECT EXISTS(SELECT 1 FROM public.questions WHERE position(:id in COALESCE(content_document::text,''))>0) "
+                used=c.execute(text("SELECT EXISTS(SELECT 1 FROM public.questions "
+                                    "WHERE position(:id in COALESCE(content_document::text,''))>0 "
+                                    "OR position(:id in to_jsonb(question)::text)>0 OR position(:id in options::text)>0) "
                                     "OR EXISTS(SELECT 1 FROM public.test_questions q WHERE position(:id in to_jsonb(q)::text)>0)"),{'id':str(media_id)}).scalar_one()
                 if used: raise ContentConflict
             c.execute(text('UPDATE public.question_media SET archived_at='+('now(),archived_by=:actor' if payload.archived else 'NULL,archived_by=NULL')+' WHERE id=:id'),{'id':media_id,'actor':actor})

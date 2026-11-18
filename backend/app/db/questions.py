@@ -92,8 +92,8 @@ def _where_clause(filters: dict[str, Any], rich_content: bool = False) -> tuple[
         conditions.append(
             "(" + " OR ".join(
                 f"position(lower(:search) in lower(coalesce(q.{column}, ''))) > 0"
-                for column in ("question", "topic", "subject", "section")
-            ) + ")"
+                for column in ("topic", "subject", "section")
+            ) + " OR position(lower(:search) in lower(coalesce(to_jsonb(q.question) #>> '{}', ''))) > 0)"
         )
         params["search"] = search
 

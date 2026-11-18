@@ -130,6 +130,36 @@ def test_practice_feedback_is_separate_from_public_projection():
     assert practice_feedback(row,doc['options'][0]['id'])['explanation_blocks']==doc['explanation']
 
 
+def test_jsonb_statement_and_image_choice_survive_browse_and_practice():
+    from app.api.v1.routes.questions import public_item
+
+    doc = document()
+    diagram = {'type': 'image', 'media_id': str(uuid4()), 'alt': 'Triangle ABC'}
+    choice = {'type': 'image', 'media_id': str(uuid4()), 'alt': 'A right triangle'}
+    doc['options'][1]['blocks'] = [choice]
+    row = {
+        'id': 1, 'status': 'published', 'question': {'blocks': [diagram]},
+        'options': doc['options'], 'correct_option': 1,
+    }
+    item = public_item(row)
+    assert item.statement_blocks == [diagram]
+    assert item.options[1]['blocks'] == [choice]
+    assert practice_feedback(row, item.option_ids[1])['is_correct']
+    assert 'correct_option' not in item.model_dump()
+
+
+def test_jsonb_prompt_keeps_public_url_image_blocks():
+    from app.api.v1.routes.questions import public_item
+
+    image = {'type': 'image', 'url': 'https://storage.example.com/chart.png', 'alt': 'Revenue chart'}
+    row = {'id': 76, 'status': 'published', 'question': {'statement': [
+        {'type': 'text', 'text': 'See the chart.'}, image, {**image, 'url': 'javascript:alert(1)'},
+    ]}}
+    item = public_item(row)
+    assert item.question == 'See the chart.'
+    assert item.statement_blocks[1:] == [{**image, 'type': 'legacy_image'}]
+
+
 def test_public_answer_reveal_requires_no_selected_option(monkeypatch):
     import app.api.v1.routes.content as route
     row = {'options': ['A', 'B', 'C', 'D'], 'correct_option': 2, 'explanation': 'Public explanation.'}

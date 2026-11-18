@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import text
 
 from app.db.database import Database
+from app.domain.question_content import statement_blocks, statement_text
 from app.domain.test_engine import TestEngineForbidden
 from app.schemas.tests import CreateTestDraft, CreateTestVersion
 
@@ -138,7 +139,9 @@ class TestAuthoringRepository:
                         {"question_id": question.question_id, "exam": test["examination_code"]},
                     ).mappings().first()
                     options = source["options"] if source is not None else None
-                    if source is not None and source.get('content_document') and not self.phase5_enabled:
+                    doc = source.get('content_document') if source is not None else None
+                    statement = doc['statement'] if doc else statement_blocks(source['question']) if source is not None else []
+                    if (doc or statement) and not self.phase5_enabled:
                         raise TestEngineForbidden('rich_snapshot_not_enabled')
                     if (
                         source is None
@@ -163,19 +166,18 @@ class TestAuthoringRepository:
                             "display_order": question.display_order,
                             "marks": question.marks,
                             "negative_marks": question.negative_marks,
-                            "question": source["question"],
+                            "question": statement_text(source["question"], statement),
                             "options": json.dumps(options, ensure_ascii=False),
                             "correct_option": int(source["correct_option"]),
                             "explanation": source["explanation"],
                         },
                     )
-                    if self.phase5_enabled and source.get('content_document'):
-                        doc=source['content_document']
+                    if self.phase5_enabled and statement:
                         # The just-inserted draft snapshot is immutable after publication.
                         connection.execute(text(
                             'UPDATE public.test_questions SET question_blocks_snapshot=CAST(:statement AS jsonb),'
                             'explanation_blocks_snapshot=CAST(:explanation AS jsonb) WHERE test_section_id=:section_id AND question_id=:question_id'
-                        ), dict(statement=json.dumps(doc['statement']),explanation=json.dumps(doc['explanation']),section_id=section_id,question_id=source['id']))
+                        ), dict(statement=json.dumps(statement),explanation=json.dumps(doc['explanation'] if doc else []),section_id=section_id,question_id=source['id']))
                     question_count += 1
             self._audit(
                 connection,
