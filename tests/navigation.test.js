@@ -13,6 +13,8 @@ test('auth entry and cross-auth links preserve the original path, filters and an
   assert.equal(signInReturnPath({ ...link }), '/questions/7?answer=show#solution')
   assert.equal(signInReturnPath(authLinkTo('/signup', link)), '/questions/7?answer=show#solution')
   assert.equal(signInReturnPath({ pathname: '/login', state: { from: '/attempts/abc#question-2' } }), '/attempts/abc#question-2')
+  assert.equal(signInReturnPath({ pathname: '/login', state: { from: '/profile' } }), '/profile')
+  assert.equal(signInReturnPath(authLinkTo('/signup', authLinkTo('/login', { pathname: '/profile/' }))), '/profile/')
   assert.equal(signInReturnPath({ pathname: '/questions', search: '?next=/results' }), '/questions?next=/results')
   assert.equal(signInReturnPath({ pathname: '/login' }), '/')
   assert.equal(signInReturnPath({ pathname: '/login', search: '?next=https://evil.test' }), '/')
@@ -22,6 +24,7 @@ test('page titles distinguish active attempts from results', () => {
   assert.equal(pageTitle('/attempts/abc'), 'Test attempt')
   assert.equal(pageTitle('/attempts/abc/result'), 'Attempt result')
   assert.equal(pageTitle('/pyq'), 'Previous-year questions')
+  assert.equal(pageTitle('/profile'), 'My profile')
 })
 
 test('active navigation follows question detail and private result routes', () => {

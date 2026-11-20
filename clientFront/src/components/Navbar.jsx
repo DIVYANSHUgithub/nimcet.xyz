@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, Search, X } from 'lucide-react'
+import { Menu, Search, UserRound, X } from 'lucide-react'
 import Container from './ui/Container'
 import Button from './ui/Button'
 import { authLinkTo, isNavActive } from '../lib/navigation'
@@ -79,7 +79,12 @@ export default function Navbar() {
             <Search size={20} />
           </Link>
           {user ? (
-            <button type="button" onClick={handleSignOut} className="hidden min-h-9 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-canvas-muted hover:text-ink-heading md:inline-flex md:items-center" title={`Signed in as ${user.email || 'user'}`}>Sign out</button>
+            <>
+              <Button as={Link} to="/profile" size="sm" variant="ghost" aria-current={isNavActive(pathname, '/profile') ? 'page' : undefined} onClick={() => setMenuOpen(false)}>
+                <UserRound size={16} aria-hidden="true" /> Profile
+              </Button>
+              <button type="button" onClick={handleSignOut} className="hidden min-h-9 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-canvas-muted hover:text-ink-heading md:inline-flex md:items-center">Sign out</button>
+            </>
           ) : isLoginPage ? (
             <span
               className="inline-flex min-h-9 items-center rounded-md border border-ink-heading bg-canvas-muted px-3 text-[0.8125rem] font-semibold text-ink-heading"

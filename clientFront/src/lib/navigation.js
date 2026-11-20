@@ -1,6 +1,6 @@
 export function safeReturnPath(value, fallback = '/questions') {
   if (typeof value !== 'string' || value.includes('\\') || [...value].some(character => character.charCodeAt(0) <= 32)) return fallback
-  return /^\/(?:questions(?:\/[^?#]*)?|tests|results|pyq|privacy-policy|terms|contact|attempts\/[a-zA-Z0-9-]+(?:\/result)?)?(?:[?#].*)?$/.test(value) ? value : fallback
+  return /^\/(?:questions(?:\/[^?#]*)?|tests|profile\/?|results|pyq|privacy-policy|terms|contact|attempts\/[a-zA-Z0-9-]+(?:\/result)?)?(?:[?#].*)?$/.test(value) ? value : fallback
 }
 
 export function signInReturnPath(location) {
@@ -16,6 +16,7 @@ export function authLinkTo(pathname, location) {
 export function pageTitle(pathname) {
   const legalTitle = { '/privacy-policy': 'Privacy Policy', '/terms': 'Terms of Service', '/contact': 'Contact Us' }[pathname.replace(/\/$/, '')]
   if (legalTitle) return legalTitle
+  if (pathname === '/profile' || pathname === '/profile/') return 'My profile'
   if (/^\/attempts\/[^/]+\/result$/.test(pathname)) return 'Attempt result'
   if (pathname.startsWith('/attempts/')) return 'Test attempt'
   if (pathname.startsWith('/questions/')) return 'Practice question'

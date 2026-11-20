@@ -20,6 +20,7 @@ const PYQ = lazy(() => import('./pages/PYQ'))
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Contact = lazy(() => import('./pages/Contact'))
+const Profile = lazy(() => import('./pages/Profile'))
 
 function NotFound() {
   return (
@@ -49,6 +50,7 @@ function App() {
             <Route path="/questions" element={<QuestionBank />} />
             <Route path="/questions/:questionId" element={<QuestionDetail />} />
             <Route path="/tests" element={<TestCatalog />} />
+            <Route path="/profile" element={<RequireSession><Profile /></RequireSession>} />
             <Route path="/attempts/:attemptId" element={<RequireSession><TestAttempt /></RequireSession>} />
             <Route path="/attempts/:attemptId/result" element={<RequireSession><AttemptResult /></RequireSession>} />
             <Route path="/pyq" element={<PYQ />} />
