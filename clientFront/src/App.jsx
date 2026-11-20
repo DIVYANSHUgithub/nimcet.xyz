@@ -5,7 +5,6 @@ import AppBoundary from './components/AppBoundary'
 import { RequireSession, RouteAccessibility } from './components/RouteAccess'
 import { AuthProvider } from './context/AuthContext'
 import OAuthReturn from './components/OAuthReturn'
-import { studentFeatures } from './lib/studentFeatures'
 
 const Home = lazy(() => import('./pages/Home'))
 const Login = lazy(() => import('./pages/Login'))
@@ -52,7 +51,7 @@ function App() {
             <Route path="/tests" element={<TestCatalog />} />
             <Route path="/attempts/:attemptId" element={<RequireSession><TestAttempt /></RequireSession>} />
             <Route path="/attempts/:attemptId/result" element={<RequireSession><AttemptResult /></RequireSession>} />
-            {studentFeatures.pyq && <Route path="/pyq" element={<PYQ />} />}
+            <Route path="/pyq" element={<PYQ />} />
             <Route path="/results" element={<StudentResults />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />

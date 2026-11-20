@@ -120,13 +120,56 @@ class Resolver:
     def roles_for(self,identity): return frozenset({'student'})
 
 
-def test_new_routes_require_authentication_and_admin_approval():
+def test_attempts_and_performance_require_authentication_and_approval_requires_admin():
     app=create_app(Settings(_env_file=None,test_engine_enabled=True,phase5_enabled=True,log_level='CRITICAL'),database=Database(),token_verifier=Verifier(),role_resolver=Resolver())
     with TestClient(app) as c:
-        assert c.get('/api/v1/pyq/papers').status_code==401
+        assert c.post(f'/api/v1/pyq/papers/{uuid4()}/attempts').status_code==401
         assert c.get('/api/v1/students/me/performance').status_code==401
         response=c.post(f'/api/v1/admin/pyq/versions/{uuid4()}/approve',json=approval().model_dump(mode='json'),headers={'Authorization':'Bearer fixture'})
         assert response.status_code==403
+
+
+def test_disabled_paper_catalog_returns_public_unpublished_state():
+    app = create_app(Settings(_env_file=None, phase5_enabled=False, log_level='CRITICAL'), database=Database())
+    with TestClient(app) as client:
+        response = client.get('/api/v1/pyq/papers')
+        assert response.status_code == 200
+        assert response.json() == {'items': [], 'total': 0, 'page': 1, 'page_size': 12, 'has_more': False}
+
+
+def test_published_paper_catalog_only_binds_attempts_to_the_viewer():
+    owner = '11111111-1111-4111-8111-111111111111'
+    attempt = uuid4()
+    queries = []
+
+    class CatalogDatabase(Database):
+        @contextmanager
+        def read_only_transaction(self):
+            yield self
+
+        def execute(self, statement, params):
+            sql = str(statement)
+            assert "t.visibility='public'" in sql and "v.status='published'" in sql
+            if sql.startswith('SELECT count(*)'):
+                return type('Count', (), {'scalar_one': lambda self: 1})()
+            queries.append(params['user'])
+            assert 'a.user_id=:user' in sql
+            return Result([{'title': 'Public fixture', 'active_attempt_id': attempt if str(params['user']) == owner else None}])
+
+    app = create_app(Settings(_env_file=None, test_engine_enabled=True, phase5_enabled=True, log_level='CRITICAL'),
+                     database=CatalogDatabase(), token_verifier=Verifier(), role_resolver=Resolver())
+    with TestClient(app) as client:
+        path = '/api/v1/pyq/papers?page=99'
+        guest = client.get(path)
+        assert guest.status_code == 200
+        assert guest.headers['cache-control'] == 'private, no-store'
+        assert guest.json()['page'] == 1
+        assert guest.json()['items'] == [{'title': 'Public fixture', 'active_attempt_id': None}]
+        signed_in = client.get(path, headers={'Authorization': 'Bearer fixture'})
+        assert signed_in.json()['items'][0]['active_attempt_id'] == str(attempt)
+        other = client.get(path, headers={'Authorization': 'Bearer other'})
+        assert other.json()['items'][0]['active_attempt_id'] is None
+    assert [str(user) if user else None for user in queries] == [None, owner, '22222222-2222-4222-8222-222222222222']
 
 
 class OwnedDatabase(Database):
@@ -194,6 +237,10 @@ def test_paper_start_is_pinned_to_selected_version():
     app=create_app(Settings(_env_file=None,test_engine_enabled=True,phase5_enabled=True,log_level='CRITICAL'),
                    database=PaperDatabase(),token_verifier=Verifier(),role_resolver=Resolver(),test_engine_repository=Engine())
     with TestClient(app) as c:
+        assert c.post(f'/api/v1/pyq/papers/{version}/attempts').status_code == 401
+        assert c.post(f'/api/v1/tests/{test}/attempts').status_code == 401
+        assert c.get(f'/api/v1/attempts/{uuid4()}').status_code == 401
+        assert not calls
         response=c.post(f'/api/v1/pyq/papers/{version}/attempts',headers={'Authorization':'Bearer fixture'})
         assert response.status_code==201
     assert calls==[{'test_id':str(test),'version_id':str(version),'user_id':'11111111-1111-4111-8111-111111111111'}]

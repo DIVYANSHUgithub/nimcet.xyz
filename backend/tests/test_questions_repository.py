@@ -105,6 +105,24 @@ def test_detail_uses_verified_bigint_primary_key_and_binds_question_identifier()
     assert params == {"question_id": 7}
 
 
+def test_pyq_filters_use_occurrence_year_and_exact_chapter_and_topic():
+    connection = _Connection(total=1, rows=[{'id': 7, 'pyq_years': [2025, 2023], 'pyq_topic': 'Matrices'}])
+    repository = QuestionsRepository(_Database(connection), rich_content=True)
+    from uuid import uuid4
+    topic = uuid4()
+    rows, _, _ = repository.list_page(page=1, page_size=10, sort='question-number', filters={
+        'pyq': True, 'year': 2025, 'subject': 'Mathematics', 'chapter': 'Algebra', 'subtopic_id': topic,
+    })
+
+    sql, params = connection.statements[0]
+    assert 'EXISTS (SELECT 1 FROM public.question_occurrences o WHERE o.question_id=q.id AND o.year=:year)' in sql
+    assert 'q.exam_year' not in sql
+    assert 'q.subject = :subject' in sql and 'btrim(q.topic)) = :chapter' in sql and 'q.subtopic_id = :subtopic_id' in sql
+    assert 'JOIN public.chapters c ON c.id=st.chapter_id' in sql
+    assert params == {'year': 2025, 'subject': 'Mathematics', 'chapter': 'Algebra', 'subtopic_id': topic}
+    assert rows[0]['pyq_years'] == [2025, 2023]
+
+
 def test_detail_rejects_non_integer_question_id_before_database_access():
     connection = _Connection(rows=[])
     repository = QuestionsRepository(_Database(connection))

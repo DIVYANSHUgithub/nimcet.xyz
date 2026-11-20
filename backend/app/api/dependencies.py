@@ -61,6 +61,15 @@ async def get_current_principal(
     return Principal(user_id=identity.subject, roles=roles)
 
 
+async def get_optional_principal(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> Principal | None:
+    if credentials is None:
+        return None
+    return await get_current_principal(request, credentials)
+
+
 def require_roles(*required: str) -> Callable:
     async def dependency(principal: Principal = Depends(get_current_principal)) -> Principal:
         if not required or not principal.roles.intersection(required):

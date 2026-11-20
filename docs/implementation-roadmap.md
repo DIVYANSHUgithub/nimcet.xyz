@@ -18,11 +18,11 @@ This plan follows the requested staged migration. Each phase must preserve the c
 - Deliver `architecture.md`, `database-schema.md`, and `api-reference.md` before implementation. These documents now define the provisional contract; they are not executable DDL or evidence of current live schema.
 - **Gate:** A first isolated additive catalog migration draft can be reviewed from the supplied audit. Question-referencing migrations and production baseline/application remain gated on exact sequence/constraint details, complete migration history, Auth/Storage findings, and a non-production rehearsal.
 
-## Phase 1.5 — Configure and validate existing Supabase (read-only database audit received; Auth/Storage review outstanding)
+## Phase 1.5 — Configure and validate existing Supabase (read-only inventory complete; runtime/Auth gates open)
 
-- The owner verified Supabase CLI authentication and linking to the existing project. The supplied live audit verifies PostgreSQL 17.6 and the `public.questions` schema/policy/grant summary and row distribution; results are recorded in `supabase-live-schema-audit-results.md`.
-- Existing Auth, Storage, security, RLS-test, and migration-plan documentation remains design/audit material. Auth JWT settings, Storage policies, detailed grants, and full migration history remain pending.
-- **Gate:** Do not apply production migrations or change existing production policies. Local additive drafts may be prepared, but require complete migration-history reconciliation and isolated rehearsal before any deployment proposal.
+- Read-only checks verify project status/region, PostgreSQL 17.11, and the complete four-version migration ledger. The live Storage inventory contains one public bucket with zero objects and no size/MIME limits; `storage.objects` has RLS enabled and no policies. Findings and limits are in `phase-1-5-supabase-audit-2026-11-06.md`.
+- Local JWT issuer/JWKS/audience/mode/algorithm values match the project domain and supplied settings, but the hosted Auth provider, redirect, and signing configuration require dashboard review. The local direct DB URL remains unusable/unverified; verify the endpoint, TLS, credential role, and grants before backend DB integration.
+- **Gate:** Do not apply production migrations or change existing production policies. Migration versions are reconciled, but any new additive draft still requires isolated rehearsal and a separately reviewed production proposal. Auth/Storage settings and runtime DB credentials require separate verification.
 
 ## Phase 2 — Backend foundation (local foundation complete; hosted credentials pending)
 
@@ -30,7 +30,7 @@ This plan follows the requested staged migration. Each phase must preserve the c
 - Establish backend/frontend local developer instructions and ensure no service key enters browser builds.
 - Verify backend starts and authentication rejects invalid/expired tokens.
 - **Delivered locally:** modular FastAPI app, settings, explicit Supabase HS256/JWKS token verification modes, SQLAlchemy connection/readiness boundary, standard error envelopes, secret-safe JSON request logs, `/api/v1`, `/health`, `/ready`, `/api/v1/auth/me`, CORS, pytest setup, and backend README.
-- **Security gate:** trusted role storage is not yet available in verified schema; until Phase 3, verified users receive only `student` and elevated authorization is unavailable. JWT mode/issuer/audience and DB URL remain unset until the hosted project settings and least-privilege connection are confirmed.
+- **Security gate:** trusted role lookup remains disabled, so users receive only `student`. JWT verification values are configured locally and match the supplied project settings; hosted Auth configuration and direct DB runtime URL/role/TLS still require verification.
 - **Verification:** 14 backend tests pass; local Uvicorn startup and health behavior were checked. Readiness correctly reports 503 without configured DB/Auth dependencies. No live Supabase token or database connection was tested.
 
 ## Phase 3 — Database migrations (catalog draft reviewed; production gate open)
@@ -61,12 +61,11 @@ This plan follows the requested staged migration. Each phase must preserve the c
 
 ## Phase 6 — Admin application
 
-- **In progress:** created a separate Vite/React admin app with Supabase sign-in, backend `/auth/me` role checks, a read-only question-count dashboard, and a super-administrator-only role assignment UI.
-- Added a trusted-role resolver that is disabled by default, an opt-in database resolver that fails closed to student, audited role grant/revoke routes, self-change rejection, and a last-super-administrator guard. Added a local-only roles/audit migration draft with RLS, no policies, and explicit revokes for client privileges on its new tables/identity sequence.
-- Linked catalog inspection verified `auth.users.id` is UUID and exposed broad `postgres`/`supabase_admin` default ACLs. The drafts now account for client table grants; the migration executor, backend runtime role, and revised SQL rehearsal remain unresolved. Keep `TRUSTED_ROLE_LOOKUP_ENABLED=false` until all gates and an owner-approved first-admin bootstrap are complete.
-- Remaining work: question editor/revision/publish APIs, rich-content/media workflows, audit coverage for those future events, preview validation, backend database integration tests, and isolated end-to-end checks.
-- Add student status/profile management only after a separate trusted workflow and privacy scope are defined. Elevated role assignment has a local audited route and UI, but remains disabled until its schema and first-admin bootstrap are approved.
-- Provide previews and validation before publishing or bulk operations.
+- Local implementation is complete in the existing admin app: canonical question/catalog/media tools, real metrics, test version previews/revision, submit/review/approve/reject/publish, test availability/archive controls, safe Auth directory, guarded primary-role and application-status management, audited attempt/results monitoring, and filtered audit history.
+- Backend authorization enforces the five-role model independently of UI visibility. General approval and source verification gate PYQ publication. Draft review revisions detect stale changes; submitted/approved configuration/content and published snapshots are frozen.
+- The CLI-created admin migration and configuration remain local drafts. Trusted Student registration adds no privileged assignment and modifies no existing users. See [the dated admin report](admin-development-2026-11-16.md) for exact schema, runtime-grant order and activation gates.
+- Automated checks passed: 159 backend tests, 28 JavaScript tests, both app lints/builds, real-component server rendering, isolated migration/security assertions and diff checks.
+- Remaining release gates: browser/role end-to-end verification, disposable hosted-version/ACL/Auth/Storage and concurrency checks, migration-ledger reconciliation, server credentials and explicit owner approval for production activation.
 
 ## Phase 7 — PYQ system
 

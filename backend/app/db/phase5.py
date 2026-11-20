@@ -12,7 +12,9 @@ from app.domain.results import result_metrics
 
 PAPER_QUESTIONS_SQL = (
     'SELECT q.id,q.question_id,s.code,s.title,s.display_order AS section_order,q.display_order AS question_order,'
+    "(to_jsonb(s)->>'duration_seconds')::integer AS section_duration_seconds,"
     'q.question_snapshot,q.options_snapshot,q.correct_option_snapshot,q.explanation_snapshot,'
+    "(to_jsonb(q)->>'alternate_correct_option_snapshot')::integer AS alternate_correct_option_snapshot,"
     "to_jsonb(q)->'question_blocks_snapshot' AS question_blocks_snapshot,"
     "to_jsonb(q)->'explanation_blocks_snapshot' AS explanation_blocks_snapshot,"
     'COALESCE(q.marks,s.default_marks) AS marks,COALESCE(q.negative_marks,s.default_negative_marks) AS negative_marks '
@@ -20,10 +22,17 @@ PAPER_QUESTIONS_SQL = (
     'WHERE s.test_version_id=:id ORDER BY s.display_order,q.display_order'
 )
 
+PUBLIC_PAPER_CONDITION = (
+    "t.kind='pyq' AND t.visibility='public' AND t.status='published' AND v.status='published'"
+)
+
 
 def paper_snapshot_digest(version, rows):
     configuration = {key:version[key] for key in ['examination_code','duration_seconds','shuffle_questions','shuffle_options']}
-    serialized=json.dumps({'configuration':configuration,'questions':[dict(r) for r in rows]},sort_keys=True,default=str,separators=(',',':'))
+    optional_keys = {'section_duration_seconds', 'alternate_correct_option_snapshot'}
+    questions = [{key: value for key, value in row.items()
+                  if key not in optional_keys or value is not None} for row in rows]
+    serialized=json.dumps({'configuration':configuration,'questions':questions},sort_keys=True,default=str,separators=(',',':'))
     return hashlib.sha256(serialized.encode('utf-8')).hexdigest()
 
 
@@ -48,8 +57,15 @@ def validate_paper_version(version, rows, approval):
             raise ValueError('The section count or original order is incomplete.')
         if [q['question_order'] for q in questions]!=list(range(spec.question_count)):
             raise ValueError('Question positions must be complete and contiguous.')
-        if any(Decimal(str(q['marks']))!=spec.marks or Decimal(str(q['negative_marks']))!=spec.negative_marks for q in questions):
-            raise ValueError('The marking scheme differs from the verified source.')
+        if questions[0].get('section_duration_seconds') != spec.duration_seconds:
+            raise ValueError('The section duration differs from the verified source.')
+        start = 0
+        for group in spec.marking_groups or [spec]:
+            end = start + group.question_count
+            if any(Decimal(str(q['marks'])) != group.marks or Decimal(str(q['negative_marks'])) != group.negative_marks
+                   for q in questions[start:end]):
+                raise ValueError('The marking scheme differs from the verified source.')
+            start = end
 
 
 class Phase5Repository:
@@ -59,10 +75,11 @@ class Phase5Repository:
         with self.database.transaction() as c:
             version=c.execute(text(
                 'SELECT v.id,v.status,v.duration_seconds,v.shuffle_questions,v.shuffle_options,'
-                "t.kind,t.status AS test_status,t.examination_code,to_jsonb(v)->>'workflow_state' AS workflow_state FROM public.test_versions v "
+                "t.kind,t.status AS test_status,t.examination_code,t.visibility,to_jsonb(v)->>'workflow_state' AS workflow_state FROM public.test_versions v "
                 'JOIN public.tests t ON t.id=v.test_id WHERE v.id=:id FOR UPDATE OF v,t'
             ),{'id':version_id}).mappings().first()
             if version is None: raise ContentNotFound
+            if version['visibility'] != 'public': raise ValueError('The paper must have public visibility.')
             rows=c.execute(text(PAPER_QUESTIONS_SQL),{'id':version_id}).mappings().all()
             if self.workflows_enabled and version['workflow_state']!='approved': raise ValueError('Complete test review first.')
             validate_paper_version(version,rows,approval)
@@ -79,26 +96,33 @@ class Phase5Repository:
     def candidates(self):
         with self.database.read_only_transaction() as c:
             return [dict(r) for r in c.execute(text(
-                "SELECT v.id AS test_version_id,t.id AS test_id,t.title,v.duration_seconds,v.version_number FROM public.test_versions v "
-                "JOIN public.tests t ON t.id=v.test_id WHERE t.kind='pyq' AND v.status='draft' AND t.status<>'archived' "
+                "SELECT v.id AS test_version_id,t.id AS test_id,t.title,t.examination_code,v.duration_seconds,v.version_number, "
+                "p.metadata AS approval, (NOT :workflows_enabled OR to_jsonb(v)->>'workflow_state'='approved') AS ready_for_verification "
+                "FROM public.test_versions v JOIN public.tests t ON t.id=v.test_id "
+                "LEFT JOIN public.pyq_papers p ON p.test_version_id=v.id "
+                "WHERE t.kind='pyq' AND t.visibility='public' AND v.status='draft' AND t.status<>'archived' "
                 'ORDER BY t.created_at DESC,v.version_number DESC LIMIT 100'
-            )).mappings().all()]
+            ), {'workflows_enabled': self.workflows_enabled}).mappings().all()]
 
-    def papers(self,exam,year,page,page_size,user_id):
-        filters="t.kind='pyq' AND t.visibility='public' AND t.status='published' AND v.status='published' AND v.version_number=(SELECT max(v2.version_number) FROM public.test_versions v2 WHERE v2.test_id=t.id AND v2.status='published')"
-        params={'user':UUID(user_id),'exam':exam,'year':year,'limit':page_size,'offset':(page-1)*page_size}
+    def papers(self, exam, year, page, page_size, user_id=None):
+        filters = (PUBLIC_PAPER_CONDITION +
+                   " AND v.version_number=(SELECT max(v2.version_number) FROM public.test_versions v2 "
+                   "WHERE v2.test_id=t.id AND v2.status='published')")
+        params = {'user': UUID(user_id) if user_id else None, 'exam': exam, 'year': year, 'limit': page_size}
         if exam: filters+=' AND p.examination_code=:exam'
         if year: filters+=' AND p.year=:year'
         base=' FROM public.pyq_papers p JOIN public.test_versions v ON v.id=p.test_version_id JOIN public.tests t ON t.id=v.test_id WHERE '+filters
         with self.database.read_only_transaction() as c:
             total=c.execute(text('SELECT count(*)'+base),params).scalar_one()
+            page = min(page, max(1, (total + page_size - 1) // page_size))
             rows=c.execute(text(
                 'SELECT p.test_version_id,t.id AS test_id,p.examination_code,p.year,p.title,p.metadata,v.duration_seconds,'
                 'v.available_from,v.available_until,v.attempt_limit,'
                 '(SELECT count(*) FROM public.test_attempts a WHERE a.test_version_id=v.id AND a.user_id=:user) AS attempts_used,'
-                "(SELECT a.id FROM public.test_attempts a WHERE a.test_version_id=v.id AND a.user_id=:user AND a.status='in_progress' LIMIT 1) AS active_attempt_id"
+                "(SELECT a.id FROM public.test_attempts a WHERE a.test_version_id=v.id AND a.user_id=:user "
+                "AND a.status='in_progress' ORDER BY a.started_at DESC LIMIT 1) AS active_attempt_id"
                 +base+' ORDER BY p.year DESC,p.examination_code,p.title,p.test_version_id LIMIT :limit OFFSET :offset'
-            ),params).mappings().all()
+            ), dict(params, offset=(page - 1) * page_size)).mappings().all()
         # List the latest published version per test; starts are pinned to its ID.
         return {'items':[dict(r) for r in rows],'total':total,'page':page,'page_size':page_size,'has_more':page*page_size<total}
 

@@ -14,6 +14,9 @@ class TestQuestionDraft(BaseModel):
     display_order: int = Field(ge=0)
     marks: Decimal = Field(gt=0, max_digits=8, decimal_places=3)
     negative_marks: Decimal = Field(default=Decimal("0"), ge=0, max_digits=8, decimal_places=3)
+    correct_option_override: int | None = Field(default=None, ge=0, le=3)
+    alternate_correct_option: int | None = Field(default=None, ge=0, le=3)
+    explanation_override: str | None = Field(default=None, max_length=20000)
 
 
 class TestSectionDraft(BaseModel):
@@ -24,6 +27,7 @@ class TestSectionDraft(BaseModel):
     code: str = Field(min_length=1, max_length=80)
     title: str = Field(min_length=1, max_length=160)
     display_order: int = Field(ge=0)
+    duration_seconds: int | None = Field(default=None, gt=0, le=86400)
     questions: list[TestQuestionDraft] = Field(min_length=1, max_length=500)
 
     @field_validator("code", "title")
@@ -113,6 +117,11 @@ class CreateTestVersion(BaseModel):
             raise ValueError("Section codes must be unique.")
         if len({section.display_order for section in self.sections}) != len(self.sections):
             raise ValueError("Section display order must be unique.")
+        durations = [section.duration_seconds for section in self.sections]
+        if any(value is not None for value in durations) and (
+            any(value is None for value in durations) or sum(value or 0 for value in durations) != self.duration_seconds
+        ):
+            raise ValueError("Timed sections must each have a duration and add up to the test duration.")
         question_ids = [q.question_id for section in self.sections for q in section.questions]
         if len(question_ids) != len(set(question_ids)):
             raise ValueError("Question IDs must be unique across the test version.")
@@ -175,6 +184,15 @@ class SessionQuestion(BaseModel):
     state: SessionQuestionState
 
 
+class TimedSection(BaseModel):
+    id: str
+    title: str
+    number: int
+    total: int
+    deadline_at: datetime
+    remaining_seconds: int = Field(ge=0)
+
+
 class TestSession(BaseModel):
     attempt_id: str
     test_id: str
@@ -185,6 +203,7 @@ class TestSession(BaseModel):
     deadline_at: datetime
     server_time: datetime
     remaining_seconds: int = Field(ge=0)
+    timed_section: TimedSection | None = None
     questions: list[SessionQuestion]
 
 
@@ -251,6 +270,7 @@ class AttemptReviewQuestion(BaseModel):
     options: list[SessionOption]
     selected_option_id: str | None
     correct_option_id: str
+    alternate_correct_option_id: str | None = None
     is_correct: bool
     explanation: str | None = None
     marks_awarded: Decimal

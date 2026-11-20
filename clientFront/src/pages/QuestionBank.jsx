@@ -5,7 +5,6 @@ import Footer from '../components/Footer'
 import Toast from '../components/Toast'
 import Breadcrumbs from '../components/questions/Breadcrumbs'
 import QuestionBankSidebar from '../components/questions/QuestionBankSidebar'
-// import QuestionBankRightSidebar from '../components/questions/QuestionBankRightSidebar'
 import QuestionBankHeader from '../components/questions/QuestionBankHeader'
 import QuestionFilters from '../components/questions/QuestionFilters'
 import QuestionList from '../components/questions/QuestionList'
@@ -153,7 +152,7 @@ export default function QuestionBank() {
       return
     }
     if (id === 'pyqs') {
-      patchQuery({ pyq: 'true' })
+      navigate('/pyq')
       return
     }
     if (id === 'important') {
@@ -238,7 +237,6 @@ export default function QuestionBank() {
           )}
         </section>
 
-        {/* <QuestionBankRightSidebar topics={topics.slice(0, 9)} onTopicSelect={(value) => patchQuery({ topic: value }, false)} className="order-3 min-[1100px]:order-3 min-[1100px]:col-start-3 min-[1100px]:row-start-1" /> */}
       </main>
       <Footer />
       <Toast message={toast} onDismiss={() => setToast('')} />

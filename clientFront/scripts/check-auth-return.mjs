@@ -13,15 +13,26 @@ for (const key of ['window', 'document', 'navigator', 'HTMLElement', 'Event', 'M
 window.scrollTo = () => {}
 const { createRoot } = await import('react-dom/client')
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
-globalThis.__authReturnFixture = { auth: { signInWithPassword: async () => {
+const signInWithPassword = async () => {
   globalThis.__fixtureSignedIn?.()
   return { error: null }
-} } }
+}
+globalThis.__authReturnFixture = {
+  auth: {
+    signInWithPassword,
+    async signUp() {
+      await signInWithPassword()
+      return { data: { session: { user: { id: 'synthetic-user' } } }, error: null }
+    },
+  },
+}
 const server = await createServer({ configFile: false, envDir: false,
   cacheDir: 'node_modules/.vite-auth-return-check', resolve: { dedupe: ['react', 'react-dom'] },
   plugins: [{ name: 'synthetic-password-auth', enforce: 'pre',
-    resolveId(source) {
+    resolveId(source, importer) {
       if (source.endsWith('/lib/supabase') || source === './supabase.js') return '\0auth-fixture'
+      if (importer?.endsWith('/TestCatalog.jsx') && source === '../lib/testsApi') return '\0test-catalog-fixture'
+      if (importer?.endsWith('/PYQTests.jsx') && source === '../../lib/backendApi') return '\0pyq-catalog-fixture'
     },
     load(id) {
       if (id === '\0auth-fixture') return `
@@ -35,8 +46,24 @@ const server = await createServer({ configFile: false, envDir: false,
         export const isSupabaseConfigured = true
         export const getSupabaseConfigError = () => new Error('Fixture')
       `
+      if (id === '\0test-catalog-fixture') return `
+        export const listTests = async () => ({ items: [{
+          id: 'practice-fixture', title: 'Public practice fixture', kind: 'custom', examination_code: 'NIMCET',
+          attempt_limit: 1, attempts_used: 0, duration_seconds: 60, question_count: 1,
+        }], page: 1, page_size: 12, has_more: false })
+        export const getAttempt = () => { throw new Error('Unexpected anonymous resume') }
+        export const startTest = () => { throw new Error('Unexpected anonymous start') }
+      `
+      if (id === '\0pyq-catalog-fixture') return `
+        export const backendGet = async () => ({items: [{
+          test_version_id: 'pyq-fixture', title: 'Public PYQ fixture', examination_code: 'NIMCET',
+          year: 2026, attempt_limit: 1, attempts_used: 0, duration_seconds: 60,
+          metadata: { paper: {}, sections: [{ code: 'MATH', question_count: 1, marks: 4, negative_marks: 1 }] },
+        }], page: 1, has_more: false})
+        export const backendRequest = () => { throw new Error('Unexpected anonymous PYQ start') }
+      `
     },
-  }, react()], server: { middlewareMode: true, hmr: false }, appType: 'custom' })
+  }, react()], server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' })
 let root
 function Probe() {
   const location = useLocation()
@@ -46,10 +73,10 @@ const click = async element => {
   assert.ok(element, 'Expected a rendered login control')
   await act(async () => element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })))
 }
-async function submitLogin() {
-  for (const [id, value] of [['login-email', 'fixture@example.test'], ['login-password', 'synthetic']]) {
+async function submitAuthForm(fields) {
+  for (const [id, value] of fields) {
     const input = document.getElementById(id)
-    assert.ok(input, `Expected real login input ${id}`)
+    assert.ok(input, `Expected auth form input ${id}`)
     await act(async () => {
       Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, value)
       input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -57,6 +84,7 @@ async function submitLogin() {
   }
   await click(document.querySelector('form button[type="submit"]'))
 }
+const submitLogin = () => submitAuthForm([['login-email', 'fixture@example.test'], ['login-password', 'synthetic']])
 try {
   const { AuthContext } = await server.ssrLoadModule('/src/context/auth-context.js')
   function FixtureSession({ initial, children }) {
@@ -70,6 +98,7 @@ try {
   const { default: Navbar } = await server.ssrLoadModule('/src/components/Navbar.jsx')
   const { default: Footer } = await server.ssrLoadModule('/src/components/Footer.jsx')
   const { default: Login } = await server.ssrLoadModule('/src/pages/Login.jsx')
+  const { default: Signup } = await server.ssrLoadModule('/src/pages/Signup.jsx')
   const { default: OAuthReturn } = await server.ssrLoadModule('/src/components/OAuthReturn.jsx')
   const { RequireSession } = await server.ssrLoadModule('/src/components/RouteAccess.jsx')
   const { rememberOAuthReturn } = await server.ssrLoadModule('/src/lib/authReturn.js')
@@ -81,15 +110,24 @@ try {
       React.createElement(FixtureSession, { initial: auth }, React.createElement(OAuthReturn), React.createElement(Probe),
         React.createElement(Routes, null,
           React.createElement(Route, { path: '/login', element: React.createElement(Login) }),
+          React.createElement(Route, { path: '/signup', element: React.createElement(Signup) }),
           React.createElement(Route, { path: '/attempts/:attemptId', element: React.createElement(RequireSession, null, React.createElement('p', null, 'Protected attempt')) }),
           React.createElement(Route, { path: '*', element: publicPage }))))))
+  }
+  for (const [path, formSelector] of [['/login', '#login-email'], ['/signup', '#signup-email']]) {
+    await mount(path)
+    assert.ok(document.querySelector(formSelector), 'Signed-out students can open the form')
+    await mount(path, { user: null, loading: true })
+    assert.ok(document.querySelector('[role="status"]').textContent.includes('Checking your sign-in'))
+    assert.equal(document.querySelector(formSelector), null)
+    await mount(`${path}?next=%2Ftests`, { user: { id: 'synthetic-user' }, loading: false })
+    assert.equal(document.getElementById('path').textContent, '/', 'An existing session redirects home')
+    assert.equal(document.querySelector(formSelector), null)
   }
   for (const origin of ['/', '/questions?subject=Mathematics#filters', '/questions/7?answer=show#solution']) {
     await mount(origin)
     const headerLogin = document.querySelector('header a[href^="/login"]')
-    const footerLogin = document.querySelector('footer a[href^="/login"]')
     assert.equal(new URL(headerLogin.href).searchParams.get('next'), origin)
-    assert.equal(new URL(footerLogin.href).searchParams.get('next'), origin)
     await click(headerLogin)
     await submitLogin()
     assert.equal(document.getElementById('path').textContent, origin, 'Password login must return to its exact starting URL')
@@ -98,6 +136,14 @@ try {
   assert.equal(document.getElementById('path').textContent, '/login')
   await submitLogin()
   assert.equal(document.getElementById('path').textContent, '/attempts/example#instructions')
+  await mount('/signup?next=%2Ftests%23instructions')
+  await submitAuthForm([
+    ['signup-fullName', 'Fixture Student'],
+    ['signup-email', 'fixture@example.test'],
+    ['signup-password', 'synthetic'],
+    ['signup-confirmPassword', 'synthetic'],
+  ])
+  assert.equal(document.getElementById('path').textContent, '/tests#instructions', 'Signup with an immediate session must keep its return path')
   for (const destination of ['/', '/questions?subject=Mathematics#filters', '/questions/7?answer=show#solution', '/tests#instructions']) {
     rememberOAuthReturn(destination)
     await mount('/questions', { user: { id: 'synthetic-user' }, loading: false })
@@ -118,7 +164,8 @@ try {
     assert.fail(`Expected ${selector} in the application`)
   }
   for (const [path, prompt] of [
-    ['/tests?source=review#instructions', 'Sign in to browse and take tests'],
+    ['/tests?source=review#instructions', 'Public practice fixture'],
+    ['/pyq?view=tests#instructions', 'Public PYQ fixture'],
     ['/results?source=review#history', 'Sign in to view your results'],
   ]) {
     await act(async () => root.unmount())
@@ -141,7 +188,7 @@ try {
     await waitFor('#login-email')
     assert.equal(window.location.pathname, '/login', `${path} must still require authentication`)
   }
-  console.log('Auth return checks passed: real login form, in-page Tests and Results prompts, protected attempts, and password and OAuth return paths.')
+  console.log('Auth checks passed: signed-in visitors redirect home, signed-out forms and prompts work, attempts stay protected, and sign-in return paths work.')
 } finally {
   if (root) await act(async () => root.unmount())
   await server.close()

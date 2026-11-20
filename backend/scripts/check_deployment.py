@@ -33,6 +33,15 @@ def main():
                     if not connection.execute(text("SELECT has_table_privilege(current_user, :table, :privilege)"),
                                               {"table": f"public.{table}", "privilege": privilege}).scalar_one():
                         raise RuntimeError("Missing runtime write grant")
+            if settings.question_authoring_enabled:
+                connection.execute(text("SELECT q.content_document,q.subtopic_id,o.position FROM public.questions q "
+                                        "JOIN public.question_occurrences o ON o.question_id=q.id LIMIT 0"))
+            if settings.phase5_enabled:
+                connection.execute(text("SELECT s.duration_seconds,q.question_blocks_snapshot,q.alternate_correct_option_snapshot,p.metadata "
+                                        "FROM public.test_sections s JOIN public.test_questions q ON q.test_section_id=s.id "
+                                        "JOIN public.pyq_papers p ON p.test_version_id=s.test_version_id LIMIT 0"))
+            if settings.admin_workflows_enabled:
+                connection.execute(text("SELECT status FROM public.account_status LIMIT 0"))
         print("Production configuration, database TLS and baseline read/write grants passed.")
         print("Run the student acceptance checklist to verify writes and ownership enforcement.")
         return 0

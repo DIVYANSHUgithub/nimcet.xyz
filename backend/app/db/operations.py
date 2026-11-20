@@ -49,9 +49,14 @@ class OperationsRepository:
             for section in sections:
                 questions=c.execute(text('SELECT * FROM public.test_questions WHERE test_section_id=:id ORDER BY display_order,id'),{'id':section['id']}).mappings().all()
                 config.append({'code':section['code'],'title':section['title'],'display_order':section['display_order'],
+                               'duration_seconds':section.get('duration_seconds'),
                                'questions':[{'question_id':q['question_id'],'display_order':q['display_order'],
                                              'marks':q['marks'] if q['marks'] is not None else section['default_marks'],
-                                             'negative_marks':q['negative_marks'] if q['negative_marks'] is not None else section['default_negative_marks']} for q in questions]})
+                                             'negative_marks':q['negative_marks'] if q['negative_marks'] is not None else section['default_negative_marks'],
+                                             **({'correct_option_override': q['correct_option_snapshot'],
+                                                 'alternate_correct_option': q.get('alternate_correct_option_snapshot'),
+                                                 'explanation_override': q['explanation_snapshot'] if not q.get('explanation_blocks_snapshot') else None}
+                                                if row['kind'] == 'pyq' else {})} for q in questions]})
                 preview.append({'code':section['code'],'title':section['title'],'questions':[dict(q) for q in questions]})
             configuration={name:row[name] for name in ['duration_seconds','attempt_limit','available_from','available_until','shuffle_questions','shuffle_options','review_policy']}
             configuration['sections']=config

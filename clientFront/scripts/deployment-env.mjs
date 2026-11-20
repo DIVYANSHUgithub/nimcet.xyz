@@ -21,8 +21,8 @@ export function deploymentErrors(env) {
   }
   if (!validKey) errors.push('VITE_SUPABASE_ANON_KEY must be a publishable key or legacy anon key; never a service key.')
   if (env.VITE_QUESTION_API_MODE !== 'backend') errors.push('Set VITE_QUESTION_API_MODE=backend for this MVP release.')
-  for (const flag of ['VITE_ENABLE_PYQ', 'VITE_ENABLE_DETAILED_ANALYTICS']) {
-    if (env[flag] && env[flag] !== 'false') errors.push(`Keep ${flag}=false until its backend and migration are activated.`)
+  if (env.VITE_ENABLE_DETAILED_ANALYTICS && env.VITE_ENABLE_DETAILED_ANALYTICS !== 'false') {
+    errors.push('Keep VITE_ENABLE_DETAILED_ANALYTICS=false until detailed analytics is released.')
   }
   return errors
 }

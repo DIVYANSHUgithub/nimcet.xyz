@@ -11,11 +11,14 @@ import { QuestionMedia, QuestionOptionContent } from '../components/ui/QuestionM
 import { getQuestionById, getQuestionAnswer, submitPracticeAnswer } from '../lib/questionsApi'
 import { normalizeQuestion } from '../utils/normalizeQuestion'
 import RichContent from '../components/RichContent'
+import { safeReturnPath } from '../lib/navigation'
 
 export default function QuestionDetail() {
   const { questionId } = useParams()
   const location = useLocation()
   const selectedOptionId = location.state?.selectedOptionId
+  const pyqReturn = safeReturnPath(location.state?.pyqReturn, '')
+  const cameFromPYQ = /^\/pyq(?:\?|$)/.test(pyqReturn)
   const [searchParams, setSearchParams] = useSearchParams()
   const revealAnswer = searchParams.get('answer') === 'show'
   const [answerRevision, setAnswerRevision] = useState(0)
@@ -26,7 +29,7 @@ export default function QuestionDetail() {
 
   useEffect(() => {
     const controller = new AbortController()
-    getQuestionById(questionId, { signal: controller.signal })
+    getQuestionById(questionId, { signal: controller.signal, useBackend: cameFromPYQ || undefined })
       .then((row) => setRequest({ id: questionId, loading: false, question: row ? normalizeQuestion(row) : null, error: '' }))
       .catch((reason) => {
         if (controller.signal.aborted || reason.name === 'AbortError') return
@@ -34,7 +37,7 @@ export default function QuestionDetail() {
         setRequest({ id: questionId, loading: false, question: null, error: 'Unable to load this question. Please try again.' })
       })
     return () => controller.abort()
-  }, [questionId, retryRevision])
+  }, [questionId, retryRevision, cameFromPYQ])
 
   const isCurrentRequest = request.id === questionId
   const loading = !isCurrentRequest || request.loading
@@ -68,7 +71,7 @@ export default function QuestionDetail() {
   }
   const breadcrumbItems = [
     { label: 'Home', href: '/' },
-    { label: 'Question Bank', href: '/questions' },
+    cameFromPYQ ? { label: 'PYQ', href: pyqReturn } : { label: 'Question Bank', href: '/questions' },
     { label: question ? `Question ${question.questionNumber ?? question.id}` : 'Question' },
   ]
 

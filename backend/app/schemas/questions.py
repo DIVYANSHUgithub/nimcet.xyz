@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,6 +22,9 @@ class QuestionItem(BaseModel):
     revision: int = 0
     subject: str | None = None
     topic: str | None = None
+    pyq_years: list[int] = Field(default_factory=list)
+    pyq_topic: str | None = None
+    pyq_chapter: str | None = None
     difficulty: str | None = None
     source: str | None = None
     status: str
@@ -43,3 +47,15 @@ class QuestionFacet(BaseModel):
 class QuestionFacets(BaseModel):
     subjects: list[QuestionFacet]
     topics: list[str]
+
+
+class PYQTaxonomyItem(BaseModel):
+    subject: str | None
+    chapter: str | None
+    topic_id: UUID | None
+    topic: str | None
+
+
+class PYQQuestionFacets(BaseModel):
+    years: list[int]
+    taxonomy: list[PYQTaxonomyItem]

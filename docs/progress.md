@@ -26,18 +26,19 @@
 
 ## Phase 1 — Architecture and database design
 
-**Status:** Design package complete; live schema validation outstanding. Do not author or run migrations until the external inventory is available.
+**Status:** Design package and current-catalog reconciliation complete; production schema changes and runtime integration remain gated.
 
 - Defined student/admin/backend/database ownership, FastAPI domain boundaries, JWT and role verification, database access strategy, API error/pagination conventions, and rollout sequence in `docs/architecture.md`.
 - Specified a versioned rich-content contract with stable option IDs, a legacy adapter plan, immutable question/test revisions, media asset lifecycle, test/attempt/result transactions, and a role/ownership matrix.
 - Proposed normalized catalog, question revision, media, role, test/PYQ, attempt/answer/result, bookmark/collection/report, and audit entities in `docs/database-schema.md`.
 - Specified versioned API groups, endpoint methods, auth roles, key request/response behavior, idempotency, and the answer-key-safe active session projection in `docs/api-reference.md`.
 - No source code, database schema, migrations, policies, or APIs were changed. No tests were run; this phase produced design artifacts only.
-- **Unresolved gate:** actual SQL types, constraints, RLS, Auth roles, Storage policies, migration history, and DB connection mode still require privileged inspection before DDL or production authorization changes.
+- **Reconciliation:** the 2026-11-06 read-only catalog review verified the deployed taxonomy and key types and documented compatibility decisions in `docs/phase-1-schema-reconciliation-2026-11-06.md`.
+- **Unresolved gates:** compare exact live policy/view definitions to migrations; configure and verify the direct DB endpoint, TLS, and least-privilege runtime role; approve the catalog label mapping before data/write-path work. Production DDL or authorization changes require their own concrete review and approval.
 
 ### Phase 1 exit status
 
-The architecture, schema proposal, and API contract are reviewable. The phase is complete for design; it is not complete for schema compatibility validation. Phase 2 may proceed with isolated backend scaffolding and mocks, but database repositories/migrations and any production-targeting work must wait for the live inventory.
+The architecture, schema proposal, API contract, and taxonomy compatibility map are reviewable against current live catalog metadata. Phase 1 is complete for design reconciliation. Isolated backend scaffolding can proceed; database integration, migration work, security remediation, and production-targeting work remain gated as listed in the reconciliation report.
 
 ## Phase 2 — Backend foundation
 
@@ -53,18 +54,19 @@ The architecture, schema proposal, and API contract are reviewable. The phase is
 
 ## Phase 1.5 — Supabase infrastructure audit/preparation
 
-**Status:** Read-only production database audit received; Auth, Storage, and complete migration-state verification remain pending.
+**Status:** Read-only project, migration-ledger, and Storage inventory complete; Auth dashboard review and backend database runtime verification remain open.
 
 - The owner verified Supabase CLI authentication and that the NIMCET.XYZ project is linked.
 - Recorded the supplied live findings in `docs/supabase-live-schema-audit-results.md`: PostgreSQL 17.6; the `public.questions` table and sequence; 15 columns; listed constraints/indexes; RLS/policy/grant/role findings; function, event trigger, extensions, migration metadata, and question counts.
 - The section distribution in `docs/audit-results/questions-distribution.json` agrees with the 102-question audit total.
-- Pending checks are listed in `docs/supabase-live-schema-audit-results.md`, including exact constraint definitions, sequence configuration, detailed grant matrix, Storage policies, Auth JWT configuration, complete migration history, and backend connection mode/role.
+- The 2026-11-06 read-only recheck confirms project status/region/PostgreSQL version and all four migration versions; the bucket metadata and object count are recorded in `docs/phase-1-5-supabase-audit-2026-11-06.md`.
+- Auth provider/redirect/signing settings are not exposed by the connected read-only tools. Backend direct DB runtime connection remains unverified because the ignored local URL has a placeholder password, targets the wrong host, and lacks explicit TLS.
 - `docs/supabase-live-schema-audit.md` retains the earlier anon/API-only baseline and should be read together with the newer live result report; the new report is the current catalog finding record.
 - No production object, record, grant, policy, Storage setting, Auth setting, or migration history was changed by this audit reporting work.
 
 ### Phase 1.5 exit status
 
-The read-only catalog results needed to begin additive schema drafting have been supplied. Full migration-history reconciliation, Storage review, Auth/JWT review, and connection-role verification remain open. No production changes were made.
+Migration-ledger and Storage inventory are complete for this audit. Auth dashboard review and direct database runtime role/TLS verification remain open. No production changes were made.
 
 ## Phase 3 — Database migrations
 
@@ -169,3 +171,93 @@ The read-only API implementation slice and local unit tests are complete. Phase 
 - Rehearsed all four local migration files in order on a fresh, network-isolated Docker PostgreSQL 17.6 database. Catalog, trusted-role, question-RLS, and test-engine smoke SQL all passed. The bootstrap database harness passed absent-user refusal, audit rollback, assignment/audit atomicity, repeat refusal, and non-operator refusal. Auth Admin response and UUID confirmation behavior were mock-checked.
 - A read-only linked production check found the standard migration ledger and all four versions recorded applied. The role/audit table columns match the local migration; RLS is enabled, policies are absent on those three tables, and anon/authenticated have no direct SELECT/INSERT. Current DB connection role is `postgres`, owner with RLS bypass; deployed FastAPI role remains unknown.
 - The owner-specified Auth UUID is absent from `auth.users` (one user exists), and `public.questions` has one row versus 102 in the 2026-11-01 audit. Four published-read policies and a `security_invoker` view exist beyond the local Phase 8 migration. These conditions require owner reconciliation before bootstrap or further production changes. No production SQL was issued; local `TRUSTED_ROLE_LOOKUP_ENABLED` remains false.
+
+## 2026-11-05 Phase 0 re-audit and verification
+
+- Re-inspected the current repository and the supplied Supabase project read-only. The project is active in `ap-south-1` on PostgreSQL 17.11; all four local migration versions appear in the live ledger. No production database, Auth, Storage, or application data was changed.
+- Confirmed 19 public tables with RLS enabled; 14 have no policies and no direct anon/authenticated table privileges. The live question policy allows public reads of complete published rows, including answer fields. Four additional published-test policies and the `security_invoker` `public_test_questions` view are absent from local migrations.
+- Rechecked `ensure_rls`: it is enabled (`O`) for public table creation events and invokes `public.rls_auto_enable()`, which sets RLS but does not create policies. This differs from the older audit note that described the event trigger as disabled. The helper is `SECURITY DEFINER` and executable by anon/authenticated; it was not modified.
+- Confirmed one live question, one test, zero attempts, four role codes, zero role assignments, one public media bucket, and zero Storage objects. Question content and object names were not read. The known one-question state remains treated as intentional.
+- Effective backend flags are `TEST_ENGINE_ENABLED=false` and `TRUSTED_ROLE_LOOKUP_ENABLED=false`. Frontend and backend Supabase URL settings match the supplied project. A backend `DATABASE_URL` is configured, but its host does not match the project's standard direct or pooler hostname patterns and its grants/TLS behavior are unverified; it was not used for a live query.
+- Validation: student `npm test` passed (17 tests), ESLint passed, student `npm run build` passed, and admin `npm run build` passed. The student package's admin wrapper initially failed because it referenced a nonexistent config path; that script was corrected and `npm run admin:build` then passed. Backend pytest collected 61 tests but stalled starting its first FastAPI `TestClient`; the faulthandler trace stopped in the Python 3.13 Windows Proactor self-pipe `socketpair()` accept, before the app route ran. No E2E or live database integration test ran.
+- Fixed the question detail practice flow so answer/explanation render only after an option is selected; added unit coverage for correct, incorrect, missing-key, and invalid selections. Made username optional to match the approved registration fields of required student name and email. Fixed the admin build/dev wrapper, added the admin `.env.example`, replaced the generic admin README, added the current audit report, and marked the 2026-11-01 architecture audit as historical. See `docs/phase-0-audit-2026-11-05.md` for findings and priorities.
+- Next gates: verify the backend DB endpoint/role/TLS against an approved non-production target, investigate the Windows `TestClient` stall, resolve question answer-key boundaries and schema drift, and keep production security changes and role bootstrap behind explicit owner approval.
+- Owner clarification received: Supabase direct connection is the intended backend endpoint. The existing local `DATABASE_URL` was not changed because its secret is configured for a different, unverified remote host. `backend/README.md` and `.env.example` now describe the direct-connection setup without exposing credentials.
+
+## 2026-11-06 database configuration and bootstrap preflight
+
+- Rechecked local configuration without printing values. The JWT issuer/JWKS/mode/algorithm match the supplied project, but the ignored backend `.env` database URI still does not target the expected direct endpoint, contains a placeholder password, and has no explicit TLS mode. No database connection was attempted through it.
+- Read-only Supabase preflight verified the supplied Auth UUID exists, the application role code exists, and there is no super-administrator assignment history or prior bootstrap audit event. No role assignment was made.
+- The supplied settings mix runtime configuration and one-time bootstrap configuration. `backend/.env` `DATABASE_URL` must use a least-privilege runtime role. `bootstrap_first_super_admin.py` requires separate process-only `BOOTSTRAP_DATABASE_URL`, `BOOTSTRAP_SUPABASE_URL`, and `BOOTSTRAP_EXPECTED_PROJECT_REF`; its `BOOTSTRAP_OWNER_ROLE` must name the PostgreSQL operator (not the app role `super_administrator`). See `docs/first-super-admin-bootstrap.md`.
+- The pasted `[password]` is a placeholder, so connection and bootstrap remain unverified. Do not execute the bootstrap until the exact operation has explicit owner approval, the secret is configured locally, and all script preconditions are satisfied.
+
+## 2026-11-06 Phase 1 schema reconciliation
+
+- Re-read the live public table inventory and migration ledger through the connected Supabase tools. Confirmed the deployed taxonomy is `examinations → subjects → chapters → topics`, with `sections` independently linked to examinations; catalog tables currently contain no rows. Confirmed `questions.id bigint` and legacy text `subject`/`topic` labels.
+- Updated the target design to use `Subject → Topic → Subtopic` product vocabulary behind a compatibility mapping to existing `chapters`/`topics`. No deployed names, values, or IDs are changed; mapping approval is required before data migration or write-path work.
+- Recorded the direct-connection selection while preserving the runtime configuration gate: the ignored local URI remains pointed at a different host, has a placeholder password, and lacks explicit TLS. It was not used.
+- Added `docs/phase-1-schema-reconciliation-2026-11-06.md` and aligned `docs/architecture.md` and `docs/database-schema.md`. No production SQL or privileged role changes were made.
+- Phase 1 is complete for design reconciliation. Exact live policy/view reconciliation, runtime DB verification, security changes, migration authoring, and first-owner bootstrap remain separate gated work.
+
+## 2026-11-06 Phase 1 security/configuration validation
+
+- The requested redacted runtime DB check found the loaded backend URI still targets a different Supabase hostname and lacks explicit TLS verification settings. The stored endpoint failed DNS resolution. A separate read-only strict-TLS attempt targeted only the supplied project host, kept the password in memory, and failed certificate verification before database authentication; no credentials or host were printed.
+- The configured DB username is the project owner-level operator role (name redacted). Live role metadata shows that role has RLS bypass, database/role creation, and SELECT/INSERT/UPDATE/DELETE on all 19 public tables. The backend runtime credential is not least privilege; a successful session identity remains unconfirmed.
+- The configured JWKS endpoint passed HTTPS certificate validation and returned one ES256-compatible P-256 key. Local issuer/JWKS/audience/mode/algorithm settings match the project. JWKS-mode code does not depend on `SUPABASE_JWT_SECRET`; real-token end-to-end verification remains blocked because no access token was supplied.
+- Student and admin frontend environment settings match the project; configured URL/key values are present in their build bundles, and both production builds passed.
+- Bootstrap was not executed. The current bootstrap process lacks the separate process-only required variables; the only bootstrap value in `backend/.env` does not match the required PostgreSQL operator role.
+- Read-only live metadata confirms RLS is enabled on all 19 public tables. Anon/authenticated have no direct table grants on seven student/role data tables, while both can select `correct_option` and `explanation` from published rows in `questions`. The safe `public_test_questions` view does not prevent direct base-table reads. Four extra live published-test policies and the view remain outside local migration history.
+- Changed only local feature-flag safeguards: `TRUSTED_ROLE_LOOKUP_ENABLED=false` and `TEST_ENGINE_ENABLED=false` in ignored backend config and source defaults. No production permission, policy, function, trigger, Auth setting, or data was changed.
+- Backend pytest collected 61 tests but blocked at the first `TestClient` request. A minimal FastAPI app reproduces the issue before routing; the stack hangs while Python 3.13.5 on Windows initializes a Proactor loop through `socket.socketpair()` fallback `accept()`. Twenty-four domain/repository tests, three role-resolver tests, two JWKS tests, and both frontend production builds passed. Full details/statuses are in `docs/phase-1-security-validation-2026-11-06.md`.
+
+## 2026-11-06 Phase 1 security retest
+
+- The current DB URI now identifies the supplied project's pooler endpoint. A strict `verify-full` connection attempt still fails certificate verification before database authentication; no connection using weaker TLS was attempted.
+- The pooler login maps to the project owner-level PostgreSQL role, whose live metadata has RLS bypass, database/role creation privileges, and full read/write/delete grants on all 19 public tables. Runtime identity remains unconfirmed; the role is not acceptable for backend runtime use.
+- Bootstrap still cannot run: its required process-only configuration is absent, and the dotenv owner-role value does not match the role mapped by the current pooler login. No bootstrap was executed.
+- The full backend pytest suite again stalls before the admin route during Windows Proactor event-loop socketpair initialization; the 24 domain/repository, 3 role-resolver, and 2 JWKS tests pass in isolated runs.
+- RLS/policy/grant metadata is unchanged: all 19 public tables have RLS; none force RLS; seven student/role tables have no anon/authenticated grants; the published question table still exposes answer/explanation columns; four extra test-read policies and a safe-column view remain outside local migration history.
+- See `docs/phase-1-security-retest-2026-11-06.md` for the redacted status matrix. No production change was made; feature flags remain disabled.
+
+## 2026-11-15 Phase 1 security retest
+
+- The current DB URL now identifies the supplied project's pooler endpoint and DNS resolves. A strict `verify-full` attempt still fails certificate verification before database authentication, so connected project identity/current role remain unconfirmed.
+- The pooler login maps to the project owner-level DB role; read-only metadata confirms RLS bypass, database/role creation, and full CRUD privileges across all 19 public tables. Do not use this login for backend runtime.
+- Bootstrap remains unconfigured in the process environment and the dotenv owner-role value does not match the mapped DB role. It was not executed.
+- The 61-test suite reproduces the same Windows Proactor `socket.socketpair()` stall before the admin route. Isolated suites pass 24 domain/repository, 3 role-resolver, and 2 JWKS tests.
+- RLS and answer-key findings are unchanged. All 19 tables have RLS, none force it; seven student/role tables remain without anon/authenticated grants, while answer/explanation columns remain readable from published questions. Four extra test policies and the safe test view remain outside local migration history.
+- Both feature flags remain disabled; no production state was changed. See `docs/phase-1-security-retest-2026-11-15.md`.
+
+
+## Phase 2 development — 2026-11-16
+
+Implemented the local question/catalog/media/practice and PYQ metadata work. See
+[Phase 2 development handover](phase-2-development-2026-11-16.md) for current
+contracts, schema changes, validation evidence and activation gates. This does
+not supersede unresolved Phase 1 findings or authorize production rollout.
+
+
+## Phase 5 development — 2026-11-16
+
+Implemented local results/review/analytics improvements, validated year-wise PYQ
+publication and delivery, rich historical snapshots and a bounded expiration
+command. See [Phase 5 handover](phase-5-development-2026-11-16.md) for contracts,
+124 backend / 22 JavaScript test results, migration rehearsal and activation
+gates. This does not declare Phase 3/4 complete or authorize production changes.
+
+
+## Phase 6 frontend integration — 2026-11-16
+
+Implemented student routing/recovery, shared request timeouts/binary media,
+responsive accessible admin tabs, test draft/version integration and React
+runtime deduplication. See [Phase 6 handover](phase-6-development-2026-11-16.md).
+125 backend tests and 28 JavaScript tests passed; component rendering, builds
+and lint passed. Browser tooling initialization failed, so visual/end-to-end
+acceptance remains pending. No production changes were made.
+
+
+## Admin completion pass — 2026-11-16
+
+The existing admin application now has the complete local editorial/test-review, safe user/status/primary-role, media, attempt/result-monitoring and audit workspace. The local migration adds frozen workflow states, active primary-role uniqueness, account status, media archival and trusted Student registration. See [the admin implementation report](admin-development-2026-11-16.md) for permissions, endpoint contracts and the precise verification/activation boundary.
+
+159 backend tests, 28 JavaScript tests, both lints/builds, component-rendering assertions and two isolated PostgreSQL migration rehearsals passed. Real-browser QA, hosted-version/ACL rehearsal, concurrency tests and owner-approved activation remain pending. No production or privileged change was made during this pass.

@@ -1,4 +1,6 @@
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 import pytest
@@ -6,7 +8,7 @@ import pytest
 from app.core.config import Settings
 from app.core.security import StudentOnlyRoleResolver, VerifiedIdentity
 from app.db.database import DatabaseUnavailable
-from app.db.test_engine import AttemptNotFound
+from app.db.test_engine import AttemptNotFound, TestEngineRepository as CatalogRepository
 from app.domain.test_engine import TestEngineConflict
 from app.main import create_app
 
@@ -135,6 +137,53 @@ def _client(repository, roles=None):
 
 def _auth():
     return {"Authorization": "Bearer test-access-token"}
+
+
+def test_public_catalog_shows_test_summaries_and_keeps_attempts_private():
+    owner = UUID('11111111-1111-4111-8111-111111111111')
+    attempt = '22222222-2222-4222-8222-222222222222'
+    test = '33333333-3333-4333-8333-333333333333'
+
+    class CatalogDatabase:
+        @contextmanager
+        def read_only_transaction(self):
+            yield self
+
+        def scalar_one(self):
+            return 1
+
+        def mappings(self):
+            return self
+
+        def all(self):
+            return self.rows
+
+        def execute(self, statement, params=None):
+            sql = str(statement)
+            assert "t.status='published' AND t.visibility='public' AND t.kind<>'pyq'" in sql
+            if params is not None:
+                assert 'a.user_id=:user_id' in sql
+                active = params['user_id'] == owner
+                self.rows = [dict(id=test, title='Public fixture', kind='full_length', examination_code='NIMCET',
+                                  duration_seconds=1800, question_count=1, available_from=None, available_until=None,
+                                  attempts_used=int(active), attempt_limit=2, active_attempt_id=attempt if active else None)]
+            return self
+
+    with _client(CatalogRepository(CatalogDatabase())) as client:
+        guest = client.get('/api/v1/tests')
+        assert guest.status_code == 200
+        assert guest.headers['cache-control'] == 'private, no-store'
+        item = guest.json()['items'][0]
+        assert item['title'] == 'Public fixture'
+        assert item['active_attempt_id'] is None and item['attempts_used'] == 0
+        assert 'questions' not in item
+        signed_in = client.get('/api/v1/tests', headers=_auth())
+        assert signed_in.json()['items'][0]['active_attempt_id'] == attempt
+        other = client.get('/api/v1/tests', headers={'Authorization': 'Bearer other-student'})
+        assert other.json()['items'][0] == item
+        assert client.post(f'/api/v1/tests/{test}/attempts').status_code == 401
+        assert client.get(f'/api/v1/attempts/{attempt}').status_code == 401
+        assert client.post(f'/api/v1/attempts/{attempt}/submit', json={}).status_code == 401
 
 
 def test_attempt_images_use_attempt_ownership_and_review_policy(monkeypatch):

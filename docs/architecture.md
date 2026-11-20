@@ -1,6 +1,6 @@
 # NIMCET.XYZ Target Architecture
 
-**Status:** Target design, not a statement of the complete live Supabase schema. The live database audit is recorded in `supabase-live-schema-audit-results.md`; Auth, Storage, migration history, and several catalog details remain pending.
+**Status:** Target design reconciled against the read-only live catalog on 2026-11-06. This remains a target design, not a claim that every proposed entity or boundary is deployed. See `phase-1-schema-reconciliation-2026-11-06.md` and `phase-0-audit-2026-11-05.md` for verified facts, drift, and remaining gates.
 
 ## Goals and constraints
 
@@ -24,7 +24,7 @@
 ### Backend domain modules
 
 - `identity`: Supabase token verification, user profile lookup, trusted role lookup, ownership helpers.
-- `catalog`: examination, subject, section, chapter, and topic metadata.
+- `catalog`: examination, subject, section, topic, and subtopic metadata. The live storage names `chapters` and `topics` remain behind a compatibility adapter until labels are reviewed and a mapping is approved.
 - `questions`: legacy adapter, rich content validation, question revisions, publication workflow, question search/detail.
 - `media`: upload policy, object-path generation, access URL resolution, safe replacement/deletion.
 - `pyq`: verified paper metadata and mapping to central question revisions.
@@ -56,9 +56,9 @@ erDiagram
   AUTH_USER ||--o{ USER_ROLE : assigned
   EXAMINATION ||--o{ EXAM_SECTION : defines
   EXAMINATION ||--o{ SUBJECT : classifies
-  SUBJECT ||--o{ CHAPTER : contains
-  CHAPTER ||--o{ TOPIC : contains
-  TOPIC ||--o{ QUESTION_TAXONOMY : classifies
+  SUBJECT ||--o{ TOPIC : contains
+  TOPIC ||--o{ SUBTOPIC : contains
+  SUBTOPIC ||--o{ QUESTION_TAXONOMY : classifies
   QUESTION ||--o{ QUESTION_REVISION : versions
   QUESTION ||--o{ QUESTION_TAXONOMY : tagged
   QUESTION_REVISION ||--o{ TEST_QUESTION : selected
@@ -78,9 +78,9 @@ erDiagram
   QUESTION ||--o{ QUESTION_REPORT : reported
 ```
 
-The ER diagram is logical. Exact SQL types, FK targets, and compatibility columns depend on live-schema review. Examination sections and academic subjects are separate children of an examination: the current 2026 `questions.section` and `questions.subject` labels overlap, but this does not establish that they are interchangeable or one-to-one. Map the legacy section field to exam sections and subject/chapter/topic classification through the academic taxonomy. Do not add a section-to-subject relationship until an official exam blueprint supports it. `test_sections` remain scoped to immutable test versions and are not the same entity as exam sections.
+The ER diagram uses target product vocabulary. Live storage currently uses `subjects → chapters → topics`; the proposed API vocabulary is `subjects → topics → subtopics`, with a compatibility mapping documented in `phase-1-schema-reconciliation-2026-11-06.md`. Do not rename or rewrite live taxonomy until its labels are reviewed and the mapping is approved. Examination sections and academic subjects are separate children of an examination: matching `questions.section` and `questions.subject` labels do not establish that they are interchangeable or one-to-one. Map the legacy section field to exam sections and academic labels through the approved taxonomy mapping. Do not add a section-to-subject relationship until an official exam blueprint supports it. `test_sections` remain scoped to immutable test versions and are not the same entity as exam sections.
 
-Catalog status is inherited through the hierarchy for student availability. A section, subject, chapter, or topic is selectable only when its own status and every relevant parent status are `active`; deactivation retains rows but excludes them from student-facing catalog/question queries. FastAPI repositories enforce the full ancestry filter.
+Catalog status is inherited through the hierarchy for student availability. A section, subject, topic, or subtopic is selectable only when its own status and every relevant parent status are `active`; deactivation retains rows but excludes them from student-facing catalog/question queries. FastAPI repositories enforce the full ancestry filter through the compatibility adapter while deployed names remain unchanged.
 
 FastAPI maintains catalog `updated_at` values explicitly on every update. PostgreSQL supplies insert defaults only; these catalog tables use no timestamp triggers.
 

@@ -13,8 +13,10 @@ from app.domain.test_engine import (
     idempotent_submission,
     next_answer_version,
     remaining_seconds,
+    require_active_section,
     session_projection,
     submission_reason,
+    timed_section_at,
     validate_answer_write,
     validate_navigation,
 )
@@ -181,6 +183,40 @@ def test_session_projection_freezes_order_and_omits_answer_key_fields():
             navigation={},
             server_time=NOW,
         )
+
+
+def test_timed_sections_switch_at_the_deadline_and_hide_locked_questions():
+    sections = [dict(id=f'section-{i}', title=f'Part {i}', duration_seconds=seconds)
+                for i, seconds in enumerate([4200, 1800, 1200], 1)]
+    boundary = NOW + timedelta(seconds=4200)
+    before = timed_section_at(sections, started_at=NOW, server_time=boundary - timedelta(milliseconds=1))
+    assert before['number'] == 1 and before['remaining_seconds'] == 1
+    with pytest.raises(TestEngineConflict, match='section_not_active'):
+        require_active_section(before, 'section-2')
+    current = timed_section_at(sections, started_at=NOW, server_time=boundary)
+    assert current['number'] == 2 and current['remaining_seconds'] == 1800
+    require_active_section(current, 'section-2')
+    with pytest.raises(TestEngineConflict, match='section_not_active'):
+        require_active_section(current, 'section-1')
+    session = session_projection(
+        attempt=dict(attempt_id='a', test_id='t', test_version_id='v', status='in_progress',
+                     started_at=NOW, deadline_at=NOW + timedelta(hours=2)),
+        questions=[_question(section_id=f'section-{i}', display_order=i) for i in range(1, 4)],
+        answers={}, navigation={}, server_time=boundary, timed_section=current,
+    )
+    assert [item['section_id'] for item in session['questions']] == ['section-2']
+    closed = timed_section_at(sections, started_at=NOW, server_time=NOW + timedelta(hours=2))
+    assert closed['number'] == 3 and closed['remaining_seconds'] == 0
+    with pytest.raises(TestEngineConflict, match='section_not_active'):
+        require_active_section(closed, 'section-3')
+
+
+@pytest.mark.parametrize('option', ['option-1', 'option-3'])
+def test_verified_alternative_earns_full_marks(option):
+    question = _question(alternate_correct_option=3)
+    result = evaluate_attempt(questions=[question], answers={question.attempt_question_id: option})
+    assert result['score'] == result['maximum_score'] == 4
+    assert result['correct'] == 1
 
 
 def test_answer_write_rejects_wrong_owner_state_deadline_and_option():

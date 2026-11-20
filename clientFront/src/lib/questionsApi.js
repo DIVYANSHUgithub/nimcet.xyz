@@ -112,9 +112,9 @@ export async function getQuestions({
   return { ...result, page: safePage, pageSize: safePageSize }
 }
 
-export async function getQuestionById(id, { signal } = {}) {
+export async function getQuestionById(id, { signal, useBackend = useBackendQuestionApi } = {}) {
   if (id == null || String(id).trim() === '') return null
-  if (useBackendQuestionApi) {
+  if (useBackend) {
     try {
       return await backendGet(`questions/${encodeURIComponent(String(id))}`, { signal })
     } catch (error) {

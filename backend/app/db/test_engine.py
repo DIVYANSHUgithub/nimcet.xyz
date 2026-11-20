@@ -17,8 +17,10 @@ from app.domain.test_engine import (
     evaluate_attempt,
     idempotent_submission,
     remaining_seconds,
+    require_active_section,
     session_projection,
     submission_reason,
+    timed_section_at,
     validate_answer_write,
     validate_navigation,
 )
@@ -26,6 +28,15 @@ from app.domain.test_engine import (
 
 class AttemptNotFound(Exception):
     pass
+
+
+def _timed_section(connection, attempt):
+    sections = connection.execute(text(
+        "SELECT s.id,s.title,(to_jsonb(s)->>'duration_seconds')::integer AS duration_seconds "
+        "FROM public.test_sections s WHERE s.test_version_id=:version_id "
+        "AND to_jsonb(s)->>'duration_seconds' IS NOT NULL ORDER BY s.display_order"
+    ), {'version_id': attempt['test_version_id']}).mappings().all()
+    return timed_section_at(sections, started_at=attempt['started_at'], server_time=attempt['server_time'])
 
 
 def _as_uuid(value: str) -> UUID:
@@ -184,6 +195,7 @@ class TestEngineRepository:
                 text(
                     "SELECT aq.display_order,ts.title AS section_title,tq.question_snapshot,tq.options_snapshot,"
                     "tq.correct_option_snapshot,tq.explanation_snapshot,aq.option_order,aa.selected_option_id,"
+                    "(to_jsonb(tq)->>'alternate_correct_option_snapshot')::integer AS alternate_correct_option_snapshot,"
                     "to_jsonb(tq)->'question_blocks_snapshot' AS question_blocks_snapshot,"
                     "to_jsonb(tq)->'explanation_blocks_snapshot' AS explanation_blocks_snapshot,"
                     "COALESCE(tq.marks,ts.default_marks) AS marks,"
@@ -209,9 +221,12 @@ class TestEngineRepository:
                 raise ValueError("invalid_test_question_snapshot")
             selected = item["selected_option_id"]
             correct_id = f"option-{int(item['correct_option_snapshot'])}"
+            alternate = item.get('alternate_correct_option_snapshot')
+            alternate_id = f'option-{alternate}' if alternate is not None else None
+            is_correct = selected is not None and selected in (correct_id, alternate_id)
             marks = Decimal(str(item["marks"]))
             negative = Decimal(str(item["negative_marks"]))
-            earned = Decimal("0") if selected is None else (marks if selected == correct_id else -negative)
+            earned = Decimal("0") if selected is None else (marks if is_correct else -negative)
             questions.append({
                 "display_order": int(item["display_order"]),
                 "section_title": item["section_title"],
@@ -224,7 +239,8 @@ class TestEngineRepository:
                 ],
                 "selected_option_id": selected,
                 "correct_option_id": correct_id,
-                "is_correct": selected == correct_id if selected is not None else False,
+                "alternate_correct_option_id": alternate_id,
+                "is_correct": is_correct,
                 "explanation": item["explanation_snapshot"],
                 "marks_awarded": earned,
                 "marks_available": marks,
@@ -319,8 +335,8 @@ class TestEngineRepository:
             "best_percentage": best,
         }
 
-    def list_public_tests(self, *, user_id: str, page: int = 1, page_size: int = 12) -> dict[str, Any]:
-        user_uuid = _as_uuid(user_id)
+    def list_public_tests(self, *, user_id: str | None, page: int = 1, page_size: int = 12) -> dict[str, Any]:
+        user_uuid = _as_uuid(user_id) if user_id is not None else None
         page = max(1, int(page))
         page_size = min(50, max(1, int(page_size)))
         offset = (page - 1) * page_size
@@ -526,6 +542,7 @@ class TestEngineRepository:
             ).mappings().first()
             if attempt is None:
                 raise AttemptNotFound
+            timed_section = _timed_section(connection, attempt)
             rows = connection.execute(
                 text(
                     "SELECT aq.id AS attempt_question_id, q.question_id, q.test_section_id AS section_id, "
@@ -539,9 +556,10 @@ class TestEngineRepository:
                     "JOIN public.test_questions AS q ON q.id=aq.test_question_id "
                     "JOIN public.test_sections AS s ON s.id=q.test_section_id "
                     "LEFT JOIN public.attempt_answers AS aa ON aa.attempt_question_id=aq.id "
-                    "WHERE aq.attempt_id=:attempt_id ORDER BY aq.display_order"
+                    "WHERE aq.attempt_id=:attempt_id "
+                    "AND (CAST(:section_id AS uuid) IS NULL OR s.id=CAST(:section_id AS uuid)) ORDER BY aq.display_order"
                 ),
-                {"attempt_id": attempt_uuid},
+                {"attempt_id": attempt_uuid, "section_id": timed_section['id'] if timed_section else None},
             ).mappings().all()
         snapshots = [_question_snapshot(dict(row)) for row in rows]
         answers = {
@@ -565,6 +583,7 @@ class TestEngineRepository:
             answers=answers,
             navigation=navigation,
             server_time=attempt["server_time"],
+            timed_section=timed_section,
         )
 
     def save_answer(
@@ -580,7 +599,8 @@ class TestEngineRepository:
         with self.database.transaction() as connection:
             row = connection.execute(
                 text(
-                    "SELECT a.status, a.deadline_at, q.options_snapshot, aq.id AS attempt_question_id, "
+                    "SELECT a.status,a.started_at,a.test_version_id,a.deadline_at,q.test_section_id, "
+                    "q.options_snapshot,aq.id AS attempt_question_id, "
                     "clock_timestamp() AS server_time FROM public.test_attempts AS a "
                     "JOIN public.attempt_questions AS aq ON aq.attempt_id=a.id "
                     "JOIN public.test_questions AS q ON q.id=aq.test_question_id "
@@ -599,6 +619,7 @@ class TestEngineRepository:
                 option_ids=option_ids,
                 selected_option_id=selected_option_id,
             )
+            require_active_section(_timed_section(connection, row), row['test_section_id'])
             # INSERT ... SELECT WHERE expected_version=0 produces no candidate
             # row for later saves, so ON CONFLICT cannot update an existing answer.
             # Keep first-save and revision-checked update semantics explicit.
@@ -652,7 +673,7 @@ class TestEngineRepository:
         with self.database.transaction() as connection:
             attempt = connection.execute(
                 text(
-                    "SELECT status,deadline_at,clock_timestamp() AS server_time FROM public.test_attempts "
+                    "SELECT status,started_at,test_version_id,deadline_at,clock_timestamp() AS server_time FROM public.test_attempts "
                     "WHERE id=:attempt_id AND user_id=:user_id FOR UPDATE"
                 ),
                 {"attempt_id": attempt_uuid, "user_id": user_uuid},
@@ -668,13 +689,15 @@ class TestEngineRepository:
             )
             question = connection.execute(
                 text(
-                    "SELECT id,display_order FROM public.attempt_questions "
-                    "WHERE id=:question_id AND attempt_id=:attempt_id FOR UPDATE"
+                    "SELECT aq.id,aq.display_order,q.test_section_id FROM public.attempt_questions aq "
+                    "JOIN public.test_questions q ON q.id=aq.test_question_id "
+                    "WHERE aq.id=:question_id AND aq.attempt_id=:attempt_id FOR UPDATE OF aq"
                 ),
                 {"question_id": question_uuid, "attempt_id": attempt_uuid},
             ).mappings().first()
             if question is None:
                 raise TestEngineForbidden("question_not_in_attempt")
+            require_active_section(_timed_section(connection, attempt), question['test_section_id'])
             validate_navigation(
                 attempt_question_ids={str(question["id"])},
                 current_attempt_question_id=str(question["id"]),
@@ -702,7 +725,7 @@ class TestEngineRepository:
         with self.database.transaction() as connection:
             attempt = connection.execute(
                 text(
-                    "SELECT a.id,a.status,a.deadline_at,v.review_policy,clock_timestamp() AS server_time "
+                    "SELECT a.id,a.status,a.started_at,a.test_version_id,a.deadline_at,v.review_policy,clock_timestamp() AS server_time "
                     "FROM public.test_attempts AS a JOIN public.test_versions AS v ON v.id=a.test_version_id "
                     "WHERE a.id=:attempt_id AND a.user_id=:user_id FOR UPDATE OF a"
                 ),
@@ -736,10 +759,14 @@ class TestEngineRepository:
                 deadline_at=attempt["deadline_at"],
                 now=attempt["server_time"],
             )
+            timed_section = _timed_section(connection, attempt)
+            if reason == 'student_submitted' and timed_section and timed_section['number'] < timed_section['total']:
+                raise TestEngineConflict('sections_remaining')
             rows = connection.execute(
                 text(
                     "SELECT aq.id AS attempt_question_id, ts.id AS section_id, ts.title AS section_title, "
                     "tq.correct_option_snapshot, COALESCE(tq.marks,ts.default_marks) AS marks, "
+                    "(to_jsonb(tq)->>'alternate_correct_option_snapshot')::integer AS alternate_correct_option_snapshot, "
                     "COALESCE(tq.negative_marks,ts.default_negative_marks) AS negative_marks, "
                     "aa.selected_option_id "
                     "FROM public.attempt_questions AS aq "
@@ -760,6 +787,7 @@ class TestEngineRepository:
                     question="",
                     options=("", "", "", ""),
                     correct_option=int(row["correct_option_snapshot"]),
+                    alternate_correct_option=row.get('alternate_correct_option_snapshot'),
                     marks=Decimal(str(row["marks"])),
                     negative_marks=Decimal(str(row["negative_marks"])),
                     option_order=(0, 1, 2, 3),

@@ -1,8 +1,8 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
-from app.api.dependencies import get_current_principal
+from app.api.dependencies import get_current_principal, get_optional_principal
 from app.api.v1.routes.content import read_registered_media
 from app.db.database import DatabaseUnavailable
 from app.db.test_engine import AttemptNotFound, TestEngineRepository
@@ -72,13 +72,15 @@ def _handle_domain_error(exc: Exception) -> HTTPException:
 @tests_router.get("", response_model=PublicTestListResponse)
 def list_public_tests(
     request: Request,
+    response: Response,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=12, ge=1, le=50),
-    principal=Depends(get_current_principal),
+    principal=Depends(get_optional_principal),
 ) -> PublicTestListResponse:
+    response.headers['Cache-Control'] = 'private, no-store'
     try:
         payload = _repository(request).list_public_tests(
-            user_id=principal.user_id, page=page, page_size=page_size
+            user_id=principal.user_id if principal else None, page=page, page_size=page_size
         )
     except DatabaseUnavailable as exc:
         raise _handle_domain_error(exc) from None

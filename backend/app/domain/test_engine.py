@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
+from math import ceil
 from typing import Any
 
 
@@ -36,6 +37,7 @@ class QuestionSnapshot:
     negative_marks: Decimal
     option_order: tuple[int, ...]
     statement_blocks: tuple[Any, ...] = ()
+    alternate_correct_option: int | None = None
 
 
 def ensure_test_eligible(
@@ -69,6 +71,25 @@ def remaining_seconds(*, deadline_at: datetime, server_time: datetime) -> int:
     return max(0, int((deadline_at - server_time).total_seconds()))
 
 
+def timed_section_at(sections, *, started_at: datetime, server_time: datetime):
+    """Derive fixed sequential windows from the attempt's persisted start time."""
+    deadline = started_at
+    for index, section in enumerate(sections, start=1):
+        deadline += timedelta(seconds=section['duration_seconds'])
+        if server_time < deadline or index == len(sections):
+            return {
+                'id': str(section['id']), 'title': section['title'], 'number': index,
+                'total': len(sections), 'deadline_at': deadline,
+                'remaining_seconds': max(0, ceil((deadline - server_time).total_seconds())),
+            }
+    return None
+
+
+def require_active_section(timed_section, section_id) -> None:
+    if timed_section and (timed_section['id'] != str(section_id) or not timed_section['remaining_seconds']):
+        raise TestEngineConflict('section_not_active')
+
+
 def session_projection(
     *,
     attempt: dict[str, Any],
@@ -76,9 +97,12 @@ def session_projection(
     answers: dict[str, dict[str, Any]],
     navigation: dict[str, dict[str, Any]],
     server_time: datetime,
+    timed_section: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     projected = []
     for question in sorted(questions, key=lambda item: item.display_order):
+        if timed_section and (question.section_id != timed_section['id'] or attempt['status'] != 'in_progress'):
+            continue
         answer = answers.get(question.attempt_question_id, {})
         state = navigation.get(question.attempt_question_id, {})
         option_ids = [f"option-{index}" for index in range(len(question.options))]
@@ -121,6 +145,7 @@ def session_projection(
         "remaining_seconds": remaining_seconds(
             deadline_at=attempt["deadline_at"], server_time=server_time
         ),
+        "timed_section": timed_section,
         "questions": projected,
     }
 
@@ -201,7 +226,7 @@ def evaluate_attempt(
             selected_index = int(selected.removeprefix("option-"))
         except (TypeError, ValueError):
             selected_index = -1
-        if selected_index == question.correct_option:
+        if selected_index in (question.correct_option, question.alternate_correct_option):
             score += question.marks
             section["score"] += question.marks
             counts["correct"] += 1

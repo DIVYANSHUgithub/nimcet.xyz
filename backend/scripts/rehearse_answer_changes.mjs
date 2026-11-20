@@ -20,11 +20,13 @@ class Result:
  def __init__(self,row): self.row=row
  def mappings(self): return self
  def first(self): return self.row
+ def all(self): return [] if self.row is None else [self.row]
 class Connection:
  def execute(self,sql,params):
   query=str(sql)
   if 'SELECT a.status' in query:
-   return Result(dict(status='in_progress',deadline_at=now+timedelta(hours=1),server_time=now,options_snapshot=['a','b','c','d']))
+   return Result(dict(status='in_progress',started_at=now,deadline_at=now+timedelta(hours=1),server_time=now,
+     test_version_id=uuid4(),test_section_id=uuid4(),options_snapshot=['a','b','c','d']))
   if 'RETURNING attempt_question_id' in query:
    captured.append(query)
    return Result(dict(attempt_question_id=params['question_id'],selected_option_id=params['selected_option_id'],version=1,saved_at=now))
@@ -44,6 +46,7 @@ const db = new PGlite()
 try {
   await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role; CREATE ROLE nimcet_backend;
     CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY);`)
+  await db.exec('CREATE FUNCTION public.rls_auto_enable() RETURNS event_trigger LANGUAGE plpgsql AS $$ BEGIN END; $$')
   const migrations = new URL('../../supabase/migrations/', import.meta.url)
   for (const name of readdirSync(migrations).filter(n => n.endsWith('.sql')).sort()) {
     await db.exec(readFileSync(new URL(name, migrations), 'utf8'))

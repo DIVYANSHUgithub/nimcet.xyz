@@ -24,7 +24,7 @@ const server = await createServer({ configFile: false, envDir: false,
         .map(name => `export const ${name} = (...args) => globalThis.__workflowApi.${name}(...args)`).join('\n')
     },
   }, react()], resolve: { dedupe: ['react', 'react-dom'] },
-  server: { middlewareMode: true, hmr: false }, appType: 'custom' })
+  server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' })
 let root
 let persisted
 let reads = 0
@@ -207,6 +207,34 @@ try {
   await act(async () => deferredSaves[1]()); await flush()
   report('submission follows the newest saved answer', submitted && persisted.questions[0].answer.selected_option_id === 'option-1')
   await unmount()
+
+  reset()
+  const loadTimedFixture = globalThis.__workflowApi.getAttempt
+  globalThis.__workflowApi.getAttempt = async () => {
+    const data = await loadTimedFixture()
+    const number = reads === 1 ? 1 : 2
+    const seconds = number === 1 ? 0 : 120
+    const title = number === 1 ? 'Mathematics' : 'Reasoning'
+    const id = `part-${number}`
+    return {
+      ...data,
+      timed_section: { id, title, number, total: 2, remaining_seconds: seconds,
+        deadline_at: new Date(Date.parse(data.server_time) + seconds * 1000).toISOString() },
+      questions: [{ ...data.questions[number - 1], section_id: id, section_title: title }],
+    }
+  }
+  await mount()
+  report('the first timed section has its own clock and cannot submit the whole test',
+    document.querySelector('header').textContent.includes('Section 1 of 2') && !button('Submit'))
+  const rolloverTimeout = Date.now() + 3000
+  while (reads < 2 && Date.now() < rolloverTimeout) await flush()
+  await flush()
+  report('section expiry loads the next section without submitting the attempt',
+    !submitted && document.querySelector('header').textContent.includes('Section 2 of 2')
+    && document.body.textContent.includes('Synthetic question 2') && !document.body.textContent.includes('Synthetic question 1')
+    && Boolean(button('Submit')))
+  await unmount()
+
   console.log(JSON.stringify({ mode: 'isolated interactive React DOM', checks, passed: checks.every(c => c.passed) }))
   process.exitCode = checks.every(c => c.passed) ? 0 : 1
 } finally {

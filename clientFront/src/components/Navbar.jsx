@@ -7,12 +7,11 @@ import { authLinkTo, isNavActive } from '../lib/navigation'
 import { cn } from '../lib/cn'
 import Toast from './Toast'
 import { useAuth } from '../context/useAuth'
-import { studentFeatures } from '../lib/studentFeatures'
 
 const navLinks = [
   { label: 'Questions', to: '/questions' },
   { label: 'Tests', to: '/tests' },
-  ...(studentFeatures.pyq ? [{ label: 'PYQ', to: '/pyq' }] : []),
+  { label: 'PYQ', to: '/pyq' },
   { label: 'My results', to: '/results' },
 ]
 

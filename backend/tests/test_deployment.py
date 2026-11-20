@@ -24,6 +24,8 @@ def release_settings(tmp_path, **changes):
 
 def test_release_config_accepts_portable_cert_and_explicit_auth(tmp_path):
     assert deployment_errors(release_settings(tmp_path)) == []
+    assert deployment_errors(release_settings(tmp_path, question_authoring_enabled=True, phase5_enabled=True,
+                                               admin_workflows_enabled=True)) == []
 
 
 def test_invalid_database_url_reports_a_safe_configuration_error(tmp_path):

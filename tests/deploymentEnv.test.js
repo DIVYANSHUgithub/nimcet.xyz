@@ -11,9 +11,10 @@ const valid = {
 
 test('deployment accepts public URLs and rejects local API, service key and unavailable features', () => {
   assert.deepEqual(deploymentErrors(valid), [])
+  assert.deepEqual(deploymentErrors({ ...valid, VITE_ENABLE_PYQ: 'true' }), [])
   const service = `eyJ.${Buffer.from(JSON.stringify({ role: 'service_role' })).toString('base64url')}.fixture`
   const errors = deploymentErrors({ ...valid, VITE_API_BASE_URL: 'http://localhost:8000/api/v1',
-    VITE_SUPABASE_ANON_KEY: service, VITE_ENABLE_PYQ: 'true' })
+    VITE_SUPABASE_ANON_KEY: service, VITE_ENABLE_DETAILED_ANALYTICS: 'true' })
   assert.equal(errors.length, 3)
   assert.equal(errors.some(error => error.includes(service)), false)
 })

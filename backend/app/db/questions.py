@@ -24,6 +24,9 @@ QUESTION_COLUMNS = """
     q.created_at
 """
 
+CATALOG_CHAPTER = ("COALESCE((SELECT btrim(c.name) FROM public.topics st "
+                   "JOIN public.chapters c ON c.id=st.chapter_id WHERE st.id=q.subtopic_id), btrim(q.topic))")
+
 
 def _normalize_search(value: str | None) -> str | None:
     if value is None:
@@ -51,6 +54,11 @@ def _where_clause(filters: dict[str, Any], rich_content: bool = False) -> tuple[
     if topic:
         conditions.append("position(lower(:topic) in lower(coalesce(q.topic, ''))) > 0")
         params["topic"] = topic
+
+    chapter = filters.get('chapter')
+    if chapter:
+        conditions.append(f"{CATALOG_CHAPTER if rich_content else 'btrim(q.topic)'} = :chapter")
+        params['chapter'] = chapter
 
     difficulty = filters.get("difficulty")
     if difficulty == "unspecified":
@@ -117,6 +125,12 @@ class QuestionsRepository:
         sort: str,
     ) -> tuple[list[dict[str, Any]], int, int]:
         where, params = _where_clause(filters, self.rich_content)
+        columns = self.columns
+        if self.rich_content and filters.get('pyq'):
+            columns += (", ARRAY(SELECT DISTINCT o.year FROM public.question_occurrences o "
+                        "WHERE o.question_id=q.id ORDER BY o.year DESC) AS pyq_years, "
+                        "(SELECT name FROM public.topics WHERE id=q.subtopic_id) AS pyq_topic, "
+                        f"{CATALOG_CHAPTER} AS pyq_chapter")
         count_sql = text(f"SELECT count(*) FROM public.questions AS q WHERE {where}")
         order_sql = (
             "q.question_number ASC NULLS LAST, q.id ASC"
@@ -130,13 +144,32 @@ class QuestionsRepository:
             actual_page = min(page, last_page)
             rows = connection.execute(
                 text(
-                    f"SELECT {self.columns} "
+                    f"SELECT {columns} "
                     f"FROM public.questions AS q WHERE {where} "
                     f"ORDER BY {order_sql} LIMIT :limit OFFSET :offset"
                 ),
                 {**params, "limit": page_size, "offset": (actual_page - 1) * page_size},
             ).mappings().all()
         return [dict(row) for row in rows], total, actual_page
+
+    def pyq_facets(self) -> dict[str, list]:
+        if not self.rich_content:
+            return {'years': [], 'taxonomy': []}
+
+        with self.database.read_only_transaction() as connection:
+            years = connection.execute(text(
+                "SELECT DISTINCT o.year FROM public.question_occurrences o "
+                "JOIN public.questions q ON q.id=o.question_id WHERE q.status='published' ORDER BY o.year DESC"
+            )).scalars().all()
+            taxonomy = connection.execute(text(
+                "SELECT DISTINCT q.subject, COALESCE(btrim(c.name), btrim(q.topic)) AS chapter, st.id AS topic_id, st.name AS topic "
+                "FROM public.questions q LEFT JOIN public.topics st ON st.id=q.subtopic_id "
+                "LEFT JOIN public.chapters c ON c.id=st.chapter_id "
+                "WHERE q.status='published' "
+                "AND EXISTS (SELECT 1 FROM public.question_occurrences o WHERE o.question_id=q.id) "
+                "ORDER BY q.subject, chapter, topic, topic_id"
+            )).mappings().all()
+        return {'years': list(years), 'taxonomy': [dict(row) for row in taxonomy]}
 
     def get_published(self, question_id: str) -> dict[str, Any] | None:
         try:

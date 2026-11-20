@@ -2,9 +2,13 @@
 
 The bootstrap is an owner-operated database transaction that assigns one trusted role and writes its audit event. It must never use signup metadata, browser state, or JWT role claims.
 
-## Current status: blocked
+## Current status (rechecked 2026-11-06): blocked
 
-The latest schema-audit report names `fchvtcnhabmnlfxsrzvu` as the owner-specified project. The current ignored frontend/backend environment files and `supabase/.temp/project-ref` instead point to `wcxxyyebcgofziylgwdg`. The recorded audits also disagree on Auth identity and question counts. The project, target Auth UUID, current role history, and production runtime database role must be freshly reconciled before bootstrap. This task does not authorize a production bootstrap. Do not use previously recorded project IDs or UUIDs as current approval.
+The owner supplied project `wcxxyyebcgofziylgwdg` and Auth UUID `7367f508-253f-4a98-a06e-0236f198296c`. A read-only live preflight verified that the Auth user and `super_administrator` role exist, and found no super-administrator assignment history or prior bootstrap audit event. No role was assigned.
+
+The supplied `DATABASE_URL` contains a `[password]` placeholder; the inspected ignored backend `.env` still does not parse as the target project's direct endpoint and has no explicit TLS mode. Keep bootstrap blocked until valid process-only `BOOTSTRAP_DATABASE_URL` and project details are configured securely and the runtime database role is separately verified. The script does not load `backend/.env`.
+
+`BOOTSTRAP_OWNER_ROLE` is the PostgreSQL operator role used to connect (for the one-time bootstrap, typically `postgres`), not the application role. `super_administrator` is the application role being assigned; do not set it as the operator role. The pasted environment values alone are not treated as authorization to execute the privileged bootstrap; obtain explicit approval for the exact project and Auth UUID and follow the final UUID confirmation prompt.
 
 The local backend default for `TRUSTED_ROLE_LOOKUP_ENABLED` is `false`. Keep it false until the exact target account has been verified in the confirmed project's `auth.users`, a successful rehearsal and current schema/grant checks are complete, the owner approves the exact bootstrap, and the deployed runtime role is verified.
 

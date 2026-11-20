@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from app.db.database import DatabaseUnavailable
 from app.db.questions import QuestionsRepository
 from app.domain.question_content import option_ids, statement_blocks, statement_text
-from app.schemas.questions import QuestionFacet, QuestionFacets, QuestionItem, QuestionPage
+from app.schemas.questions import PYQQuestionFacets, QuestionFacet, QuestionFacets, QuestionItem, QuestionPage
 
 router = APIRouter()
 
@@ -53,6 +53,14 @@ def question_facets(request: Request) -> QuestionFacets:
     )
 
 
+@router.get('/pyq-facets', response_model=PYQQuestionFacets)
+def pyq_question_facets(request: Request):
+    try:
+        return _repository(request).pyq_facets()
+    except DatabaseUnavailable:
+        raise _database_unavailable() from None
+
+
 @router.get("", response_model=QuestionPage)
 def list_questions(
     request: Request,
@@ -61,6 +69,7 @@ def list_questions(
     exam: str | None = Query(default=None, min_length=1, max_length=80),
     section: str | None = Query(default=None, min_length=1, max_length=120),
     subject: str | None = Query(default=None, min_length=1, max_length=120),
+    chapter: str | None = Query(default=None, min_length=1, max_length=120),
     topic: str | None = Query(default=None, max_length=120),
     difficulty: str | None = Query(default=None, min_length=1, max_length=40),
     year: int | None = Query(default=None, ge=1900, le=2200),
@@ -82,6 +91,8 @@ def list_questions(
     }
     if subtopic_id is not None:
         filters['subtopic_id'] = subtopic_id
+    if chapter is not None:
+        filters['chapter'] = chapter
     if pyq:
         filters['pyq'] = True
     try:

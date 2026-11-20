@@ -34,8 +34,8 @@ def deployment_errors(settings: Settings) -> list[str]:
         errors.append("CORS_ALLOWED_ORIGINS must contain exact public HTTPS frontend origins without trailing slashes.")
     if not settings.test_engine_enabled or not settings.trusted_role_lookup_enabled:
         errors.append("Enable TEST_ENGINE_ENABLED and TRUSTED_ROLE_LOOKUP_ENABLED for the student MVP.")
-    if settings.question_authoring_enabled or settings.phase5_enabled or settings.admin_workflows_enabled:
-        errors.append("Keep QUESTION_AUTHORING_ENABLED, PHASE5_ENABLED and ADMIN_WORKFLOWS_ENABLED false for this MVP release.")
+    if settings.phase5_enabled and not settings.question_authoring_enabled:
+        errors.append("Enable QUESTION_AUTHORING_ENABLED with PHASE5_ENABLED for the PYQ release.")
     try:
         url = make_url(settings.database_url.get_secret_value() if settings.database_url else "")
         if url.drivername not in {"postgresql", "postgresql+psycopg"} or url.query.get("sslmode") != "verify-full":

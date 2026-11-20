@@ -17,6 +17,8 @@ function errorMessage(error) {
     if (error.code === 'account_suspended') return 'Application access is suspended. Contact an administrator.'
     if (error.status === 401) return 'Your session expired. Sign in again to resume this attempt.'
     if (error.status === 404) return 'This attempt could not be found for your account.'
+    if (error.code === 'section_not_active') return 'That section has closed. Sync to load the active section.'
+    if (error.code === 'sections_remaining') return 'You can submit the test in the final section.'
     if (error.status === 409) return 'The attempt changed or its deadline passed. Use Sync now to check its latest state.'
     if (error.status === 503) return 'The test service is temporarily unavailable. Your saved answers remain on the server.'
   }
@@ -49,6 +51,8 @@ export default function TestAttempt() {
 function TestAttemptPage() {
   const { attemptId } = useParams()
   const [session, setSession] = useState(null)
+  const timedSection = session?.timed_section
+  const canSubmit = !timedSection || timedSection.number === timedSection.total
   const questionList = session?.questions ?? EMPTY_QUESTIONS
   const [answers, setAnswers] = useState({})
   const [navigation, setNavigation] = useState({})
@@ -78,14 +82,25 @@ function TestAttemptPage() {
     const answerState = Object.fromEntries(data.questions.map((item) => [item.attempt_question_id, item.answer]))
     const navState = Object.fromEntries(data.questions.map((item) => [item.attempt_question_id, item.state]))
     const nextVersions = Object.fromEntries(data.questions.map((item) => [item.attempt_question_id, item.answer.version]))
+    let closedUnsavedAnswer = false
     if (data.status === 'in_progress') {
       // A refresh must not replace an unsaved local choice with older server data.
       for (const [id, edit] of pendingAnswers.current) {
         if (answerState[id]) answerState[id] = { ...answerState[id], selected_option_id: edit.optionId }
+        else if (data.timed_section) {
+          pendingAnswers.current.delete(id)
+          closedUnsavedAnswer = true
+        }
       }
       for (const [id, edit] of pendingNavigation.current) {
         if (navState[id]) navState[id] = { visited: true, marked_for_review: edit.marked_for_review }
+        else if (data.timed_section) pendingNavigation.current.delete(id)
       }
+      if (data.timed_section) setSaveErrors(errors => Object.fromEntries(Object.entries(errors).filter(([key]) => {
+        const [kind, id] = key.split(':')
+        return kind === 'answer' ? Boolean(answerState[id]) : kind === 'navigation' && Boolean(navState[id])
+      })))
+      if (closedUnsavedAnswer) setMessage('The previous section closed with changes still pending. Its score uses the answers saved on the server.')
     } else {
       if (pendingAnswers.current.size || pendingNavigation.current.size) {
         setMessage('The attempt has ended. Results use the answers saved on the server; unconfirmed changes could not be included.')
@@ -99,10 +114,14 @@ function TestAttemptPage() {
     versionsRef.current = nextVersions
     const firstUnanswered = data.questions.find((item) => !item.answer.selected_option_id)
     setSelectedId((current) => data.questions.some((item) => item.attempt_question_id === current) ? current : (firstUnanswered || data.questions[0])?.attempt_question_id || '')
-    setRemaining(data.remaining_seconds)
-    deadlineRef.current = performance.now() + data.remaining_seconds * 1000
+    setRemaining(data.timed_section?.remaining_seconds ?? data.remaining_seconds)
+    const milliseconds = data.timed_section
+      ? Date.parse(data.timed_section.deadline_at) - Date.parse(data.server_time)
+      : data.remaining_seconds * 1000
+    deadlineRef.current = performance.now() + Math.max(0, milliseconds)
     if (data.status !== 'in_progress') setLoadState('complete')
     else setLoadState('ready')
+    return closedUnsavedAnswer
   }, [])
 
   const clearSaveError = useCallback((key) => setSaveErrors((old) => {
@@ -179,7 +198,7 @@ function TestAttemptPage() {
     const request = (async () => {
       await waitForSaves()
       const data = await getAttempt(attemptId)
-      hydrate(data)
+      const closedUnsavedAnswer = hydrate(data)
       if (data.status !== 'in_progress') return data
       // A timed-out request may already have committed. Read first, then retry
       // only edits not confirmed by the server, using its current CAS version.
@@ -201,7 +220,7 @@ function TestAttemptPage() {
       await waitForSaves()
       if (!pendingAnswers.current.size && !pendingNavigation.current.size) {
         clearSaveError('sync')
-        setMessage(quiet ? '' : 'Session refreshed. Your saved answers are up to date.')
+        if (!closedUnsavedAnswer) setMessage(quiet ? '' : 'Session refreshed. Your saved answers are up to date.')
       }
       return data
     })().catch((error) => {
@@ -274,13 +293,13 @@ function TestAttemptPage() {
   const visibleNumbers = questionList.filter((question) => activeSection === 'all' || question.section_id === activeSection)
 
   const navigateTo = useCallback((question) => {
-    if (!question || submissionLock.current || syncPromise.current || !navigator.onLine) return
+    if (!question || submissionLock.current || syncPromise.current || !navigator.onLine || performance.now() >= deadlineRef.current) return
     setSelectedId(question.attempt_question_id)
     setNavigation((old) => ({ ...old, [question.attempt_question_id]: { ...(old[question.attempt_question_id] || question.state), visited: true } }))
   }, [])
 
   const selectOption = useCallback((optionId) => {
-    if (!current || loadState !== 'ready' || submissionLock.current || syncPromise.current || !navigator.onLine) return
+    if (!current || loadState !== 'ready' || submissionLock.current || syncPromise.current || !navigator.onLine || performance.now() >= deadlineRef.current) return
     const questionId = current.attempt_question_id
     const edit = { optionId }
     pendingAnswers.current.set(questionId, edit)
@@ -289,7 +308,7 @@ function TestAttemptPage() {
   }, [current, loadState, queueAnswer])
 
   const markReview = useCallback(() => {
-    if (!current || loadState !== 'ready' || submissionLock.current || syncPromise.current || !navigator.onLine) return
+    if (!current || loadState !== 'ready' || submissionLock.current || syncPromise.current || !navigator.onLine || performance.now() >= deadlineRef.current) return
     const questionId = current.attempt_question_id
     const marked = !(navigation[questionId]?.marked_for_review ?? current.state.marked_for_review)
     setNavigation((old) => ({ ...old, [questionId]: { ...(old[questionId] || current.state), visited: true, marked_for_review: marked } }))
@@ -297,7 +316,7 @@ function TestAttemptPage() {
   }, [current, loadState, navigation])
 
   const submit = useCallback(async (automatic = false) => {
-    if (submissionLock.current || syncPromise.current || loadState !== 'ready') return
+    if (!canSubmit || submissionLock.current || syncPromise.current || loadState !== 'ready') return
     submissionLock.current = true
     setSubmitting(true)
     setConfirmSubmit(false)
@@ -326,13 +345,18 @@ function TestAttemptPage() {
       submissionLock.current = false
       setSubmitting(false)
     }
-  }, [attemptId, hydrate, loadState, waitForSaves])
+  }, [attemptId, canSubmit, hydrate, loadState, waitForSaves])
 
   useEffect(() => {
     if (remaining !== 0 || loadState !== 'ready' || submitting || syncing || automaticSubmission.current) return undefined
+    if (!canSubmit) {
+      if (!online) return undefined
+      const timer = window.setTimeout(() => refreshSession({ quiet: true }).catch(() => {}), 1000)
+      return () => window.clearTimeout(timer)
+    }
     const timer = window.setTimeout(() => { automaticSubmission.current = true; submit(true) }, 0)
     return () => window.clearTimeout(timer)
-  }, [remaining, loadState, submitting, syncing, submit])
+  }, [remaining, loadState, submitting, syncing, canSubmit, online, refreshSession, submit])
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -379,10 +403,10 @@ function TestAttemptPage() {
     <div className="flex min-h-svh flex-col bg-canvas-subtle">
       <header className="sticky top-0 z-30 border-b border-line bg-surface shadow-card">
         <div className="mx-auto flex min-h-[4.25rem] max-w-[90rem] items-center justify-between gap-3 px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3"><Link to="/tests" className="grid size-9 shrink-0 place-items-center rounded-lg border border-line text-ink-muted hover:bg-canvas-muted" aria-label="Exit to test list"><ArrowLeft size={17} /></Link><div className="min-w-0"><p className="truncate text-sm font-semibold text-ink-heading">{session.test_title}</p><p className="text-xs text-ink-muted">Attempt in progress</p></div></div>
-          <div className="flex items-center gap-3"><span className={`hidden items-center gap-1.5 text-xs sm:inline-flex ${online && !saveError ? 'text-success' : 'text-danger'}`} aria-live="polite">{online ? <Wifi size={14} /> : <WifiOff size={14} />}{saveLabel}</span><div className={`flex min-w-[6.6rem] items-center justify-center gap-2 rounded-xl px-3 py-2 font-mono text-lg font-bold tabular-nums ${timerCritical ? 'bg-danger-bg text-danger' : timerUrgent ? 'bg-warning-bg text-warning' : 'bg-canvas-subtle text-ink-heading'}`} role="timer" aria-label={`Time remaining ${formatTime(remaining)}`}><Clock3 size={17} />{formatTime(remaining)}</div><Button size="sm" onClick={() => setConfirmSubmit(true)} disabled={submitting || syncing || !online}>Submit</Button></div>
+          <div className="flex min-w-0 items-center gap-3"><Link to="/tests" className="grid size-9 shrink-0 place-items-center rounded-lg border border-line text-ink-muted hover:bg-canvas-muted" aria-label="Exit to test list"><ArrowLeft size={17} /></Link><div className="min-w-0"><p className="truncate text-sm font-semibold text-ink-heading">{session.test_title}</p><p className="text-xs text-ink-muted">{timedSection ? `Section ${timedSection.number} of ${timedSection.total} · ${timedSection.title}` : 'Attempt in progress'}</p></div></div>
+          <div className="flex items-center gap-3"><span className={`hidden items-center gap-1.5 text-xs sm:inline-flex ${online && !saveError ? 'text-success' : 'text-danger'}`} aria-live="polite">{online ? <Wifi size={14} /> : <WifiOff size={14} />}{saveLabel}</span><div className={`flex min-w-[6.6rem] items-center justify-center gap-2 rounded-xl px-3 py-2 font-mono text-lg font-bold tabular-nums ${timerCritical ? 'bg-danger-bg text-danger' : timerUrgent ? 'bg-warning-bg text-warning' : 'bg-canvas-subtle text-ink-heading'}`} role="timer" aria-label={`${timedSection ? 'Section time' : 'Time'} remaining ${formatTime(remaining)}`}><Clock3 size={17} />{formatTime(remaining)}</div>{canSubmit && <Button size="sm" onClick={() => setConfirmSubmit(true)} disabled={submitting || syncing || !online}>Submit</Button>}</div>
         </div>
-        {timerUrgent && <div className={`h-1 ${timerCritical ? 'bg-danger' : 'bg-warning'}`} style={{ width: `${Math.max(1, Math.min(100, remaining / Math.max(1, session.remaining_seconds) * 100))}%` }} />}
+        {timerUrgent && <div className={`h-1 ${timerCritical ? 'bg-danger' : 'bg-warning'}`} style={{ width: `${Math.max(1, Math.min(100, remaining / Math.max(1, timedSection?.remaining_seconds ?? session.remaining_seconds) * 100))}%` }} />}
       </header>
 
       <div className="mx-auto grid w-full max-w-[90rem] flex-1 gap-4 px-3 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_19rem] lg:gap-5 lg:px-7 lg:py-6">
@@ -393,6 +417,7 @@ function TestAttemptPage() {
           </div>
 
           {!online && <div className="mb-4 rounded-xl border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger" role="alert">Connection lost. Test actions are paused until you reconnect; previously saved answers are safe.</div>}
+          {!canSubmit && remaining === 0 && <p role="status" className="mb-4 text-sm text-ink-muted">Loading the next section…</p>}
           {displayMessage && <div className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-warning-border bg-warning-bg px-4 py-3 text-sm text-warning" role="status"><span>{displayMessage}</span><button type="button" disabled={syncing || submitting || !online} onClick={() => refreshSession().catch(() => {})} className="shrink-0 font-semibold underline">Sync now</button></div>}
 
           <section className="min-h-[22rem] rounded-2xl border border-line bg-surface p-5 shadow-card sm:p-8" aria-labelledby="question-heading">

@@ -16,7 +16,7 @@
 
 - Collection requests accept `limit` (default 20, maximum 100) and `cursor` where stable cursor pagination is available.
 - Responses use `{ "items": [], "next_cursor": null }`; include `total` only when a caller needs it and the query cost is acceptable.
-- Question filters are server-side: `examination`, `subject`, `section`, `chapter`, `topic`, `difficulty`, `year`, `type`, `search`, `sort`.
+- Target taxonomy filters are server-side: `examination_id`, `subject_id`, `topic_id`, and `subtopic_id`; question search also retains its legacy text filters during migration.
 - List ordering has a stable unique tiebreaker. Ignore/abort stale frontend requests, but do not rely on client cancellation for server correctness.
 
 The current legacy question endpoint uses `page` (default 1) and `page_size` (default 10, maximum 100), returning an exact `total` and clamping an out-of-range page to the final page. It supports the existing fields `exam`, `section`, `subject`, `topic`, `difficulty`, `year`, `type`, `search`, and `sort`; chapter filtering remains unavailable because the legacy table has no chapter column.
@@ -65,7 +65,8 @@ The current legacy question endpoint uses `page` (default 1) and `page_size` (de
 | `POST /questions/{question_id}/archive` | Administrator+ | Removes from future browse/test selection while retaining existing references and attempts. No destructive delete by default. |
 | `GET /examinations` | Public | Active exam definitions available to browse. |
 | `GET /subjects` | Public | Filter by `examination_id`; active subject list. |
-| `GET /topics` | Public | Filter by subject/chapter; paginated where needed. |
+| `GET /topics` | Public | Target taxonomy endpoint; filter by `subject_id`, active only. Adapter maps to deployed `chapters` after label mapping is approved. |
+| `GET /subtopics` | Public | Target taxonomy endpoint; filter by `topic_id`, active only. Adapter maps to deployed `topics` after label mapping is approved. |
 
 Question response includes `content: {version, prompt, options}` and metadata, with stable option IDs. `correct_option_id` is omitted from every endpoint used for an active test session. Content renderer uses the shared schema described in `architecture.md`.
 
@@ -91,7 +92,7 @@ File size and MIME allowlists are configuration, not frontend-only checks. Rejec
 | `POST /admin/pyqs` | Administrator+ | Creates draft paper metadata referencing an existing test/test version; validates exam/year/source. |
 | `PUT /admin/pyqs/{paper_id}/questions` | Administrator+ | Replaces draft mapping atomically with central question revisions, original section/order, marks, negative marks. Published versions are immutable. |
 | `POST /admin/pyqs/{paper_id}/publish` | Administrator+ | Validates original order and paper metadata; publish action is audited. |
-| `GET /tests` | Public/student | Lists eligible published public tests, respecting schedules, visibility, and user ownership for private tests. Never returns answer keys. |
+| `GET /tests` | Public | Lists published public tests and their schedules. Signed-in callers also see their own attempt progress. |
 | `POST /tests` | Student or administrator | Student creates private test; admin creates draft. Server validates count, filters, duration, and selected question eligibility. |
 | `GET /tests/{test_id}` | Owner/admin or eligible student | Metadata and permitted configuration. Does not include answer keys. |
 | `POST /admin/tests/{test_id}/versions` | Administrator+ | Builds new immutable draft version with sections/questions/marking/review policy. |
@@ -115,7 +116,7 @@ The response envelope is `{ "items": [<legacy question rows>], "page": 1, "page_
 
 | Method and path | Auth / role | Contract and behavior |
 | --- | --- | --- |
-| `GET /tests?page=1&page_size=12` | Student | Implemented locally. Lists published public tests with duration, question count, schedule, attempt count, and the caller's active attempt ID. It never returns question content or answer data. |
+| `GET /tests?page=1&page_size=12` | Public | Lists published public tests with duration, question count, and schedule. Attempt count and active attempt ID are scoped to the signed-in caller. The response contains test summaries. |
 | `POST /tests/{test_id}/attempts` | Student; owner for private test | Implemented locally. Locks the published version, enforces schedule/attempt limits, creates a persisted question/option-order snapshot, and resumes an existing active attempt on retry. Returns database-owned times and a safe projection without correctness/explanation fields. |
 | `GET /attempts/{attempt_id}` | Owning student | Implemented locally. Recovers the persisted safe session; when read after the deadline, it performs an idempotent timer submission before returning the terminal session. |
 | `PUT /attempts/{attempt_id}/answers/{attempt_question_id}` | Owning student, active and before deadline | Implemented locally with request `{selected_option_id, expected_version}`. Locks the owning attempt, validates option membership, and applies compare-and-swap versioning. |
@@ -197,3 +198,58 @@ The current Phase 8 draft snapshots legacy question text/options/answer indexes 
 ## Contract sequencing
 
 Before implementation, validate these contracts against actual schema and auth configuration. Phase 2 may implement health/auth and read-only question endpoints first. Any endpoint exposing answers or allowing writes waits for its own authorization and integration checks. API versioning does not waive backward compatibility inside an already-deployed `/v1` contract.
+
+
+## Phase 2 question content contracts — 2026-11-16
+
+Public question responses now omit answer keys, explanations and full editorial
+documents. Clients submit an option ID to the practice endpoint for feedback.
+The new authoring/catalog/media APIs are gated by `QUESTION_AUTHORING_ENABLED`.
+See [Phase 2 API and rollout details](phase-2-development-2026-11-16.md).
+Older descriptions of answer-bearing browse responses are superseded by this
+contract; exam-attempt response contracts are unchanged.
+
+
+## Phase 5 results and PYQ contracts — 2026-11-16
+
+See [Phase 5 API and activation notes](phase-5-development-2026-11-16.md).
+The dedicated `/pyq/papers` catalog lists approved complete papers; ordinary
+`/tests` excludes PYQ entries. Starts may be pinned to the chosen paper version.
+Private performance analytics exclude unreleased results, and timed review
+requires result release. Existing result/attempt routes are preserved.
+
+
+## Phase 6 admin integration — 2026-11-16
+
+GET `/api/v1/admin/tests?page=1&search=` returns a page of up to 30 nonarchived
+tests with their latest version. It requires Test Manager or administrator
+authority and the enabled test-engine router. See
+[Phase 6 handover](phase-6-development-2026-11-16.md) for UI integration and
+validation limits.
+
+
+## Implemented admin workflows — 2026-11-16
+
+All paths below use `/api/v1/admin`. Except capabilities, these require `ADMIN_WORKFLOWS_ENABLED` and trusted database role lookup. Existing question, test and PYQ routes retain their own flags. Mutations require bounded reasons where shown and append audit events transactionally. See `admin-development-2026-11-16.md` for configuration and verification limits.
+
+| Method and path | Roles | Behavior |
+| --- | --- | --- |
+| `GET /capabilities` | All admin roles | Safe feature availability; no configuration secrets. |
+| `GET /operations/summary` | Administrator, Super Administrator | Actual operational counts. |
+| `GET /operations/recent-activity` | All admin roles | Most recent five events for the current operator. |
+| `GET /tests/{id}/versions`, `GET /versions/{id}` | Test Manager, Administrator, Super Administrator | Stored version states/configuration and full authoring snapshot preview. |
+| `POST /versions/{id}/review` | Test Manager+ | `action`, `reason`, `expected_revision`; submit/withdraw or Administrator-only approve/reject. |
+| `GET /review-queue` | Administrator+ | Submitted versions, page size 30. |
+| `PUT /tests/{id}/metadata` | Administrator+ | Rename with `title`, `reason`. |
+| `PUT /tests/{id}/availability` | Administrator+ | Suspend/resume new attempts with `available`, `reason`; resume requires a published version. |
+| `POST /tests/{id}/archive` | Administrator+ | Reasoned archival preserving attempts/results. |
+| `GET /users`, `GET /users/{uuid}` | Administrator+ | Safe paginated Auth directory and exact UUID lookup; server-only directory credential required. |
+| `PUT /users/{uuid}/primary-role` | Super Administrator | Atomic `role`, required nullable `expected_role`, `reason`; guarded against self-change, stale prior role and last-owner removal. |
+| `PUT /users/{uuid}/status` | Administrator+ | `status`, optional timezone-aware future `suspended_until`, `reason`; nonprivileged application access only. This supersedes the earlier proposed PATCH contract. |
+| `GET /attempts` | Administrator+ | Audited monitoring, page size 30, optional `user_id`, `test_id`, `status`. |
+| `POST /attempts/{uuid}/review` | Administrator+ | Required reason; audited frozen answers/stored results, terminal attempts only. |
+| `POST /attempts/{uuid}/terminate` | Administrator+ | Required reason; ends non-overdue active attempt without manufacturing a score. |
+| `GET /media`, `PUT /media/{uuid}/archive` | All admin roles | Paginated active/archive library and reasoned archive/restore; referenced assets cannot be archived. |
+| `GET /activity` | Super Administrator | Audit pagination and exact `action`, `entity`, `actor` filters. |
+
+With admin workflows enabled, legacy separate role grant/revoke endpoints return `409 primary_role_api_required`; use atomic primary-role replacement. Test publication requires workflow approval, and PYQ publication additionally requires verified source metadata. Question listing now accepts `state`, `exam` and `subject` filters alongside search/page. Earlier proposed import routes in this document remain unimplemented and outside this work's dataset-processing scope.

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { authLinkTo } from '../lib/navigation'
-import { ArrowRight, Clock3, FileQuestion, RefreshCw, ShieldCheck, Trophy } from 'lucide-react'
+import { FileQuestion } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
+import { TestCatalogCard, TestCatalogGrid, TestCatalogIntro, TestCatalogRefresh } from '../components/tests/TestCatalogUI'
 import Button from '../components/ui/Button'
 import { useAuth } from '../context/useAuth'
 import { ApiRequestError } from '../lib/backendApi'
@@ -20,7 +21,7 @@ const KIND_LABELS = {
 
 function friendlyError(error) {
   if (error instanceof ApiRequestError) {
-    if (error.status === 401) return 'Sign in to view and take tests.'
+    if (error.status === 401) return 'Sign out and sign in again to take a test.'
     if (error.code === 'account_suspended') return 'Application access is suspended. Contact an administrator.'
     if (error.status === 403) {
       if (error.code === 'attempt_limit_reached') return 'You have used all attempts allowed for this test.'
@@ -37,22 +38,6 @@ function friendlyError(error) {
   return error?.message || 'Tests could not be loaded. Please try again.'
 }
 
-function formatDuration(seconds) {
-  const minutes = Math.round(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  return hours ? `${hours} hr${hours === 1 ? '' : 's'}${minutes % 60 ? ` ${minutes % 60} min` : ''}` : `${minutes} min`
-}
-
-function scheduleState(test, now) {
-  const start = test.available_from ? new Date(test.available_from) : null
-  const end = test.available_until ? new Date(test.available_until) : null
-  if (start && start > now) return { label: `Opens ${start.toLocaleString()}`, disabled: true }
-  if (end && end <= now) return { label: 'Closed', disabled: true }
-  if (test.attempts_used >= test.attempt_limit && !test.active_attempt_id) return { label: 'Attempts used', disabled: true }
-  if (test.active_attempt_id) return { label: 'Continue attempt', disabled: false, resume: true }
-  return { label: 'Start test', disabled: false }
-}
-
 export default function TestCatalog() {
   const { user } = useAuth()
   return <TestCatalogPage key={user?.id ?? 'anonymous'} />
@@ -60,6 +45,7 @@ export default function TestCatalog() {
 
 function TestCatalogPage() {
   const location = useLocation()
+  const signIn = authLinkTo('/login', location)
   const { user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [response, setResponse] = useState({ items: [], page: 1, page_size: 12, total: 0, has_more: false })
@@ -70,34 +56,31 @@ function TestCatalogPage() {
   const [filter, setFilter] = useState('all')
   const [revision, setRevision] = useState(0)
 
-  const load = useCallback((signal) => {
-    setLoading(true)
-    setError('')
-    listTests({ page: response.page, pageSize: response.page_size, signal })
-      .then((data) => {
-        if (signal?.aborted) return
-        setResponse((previous) => data.page > 1
-          ? { ...data, items: [...previous.items, ...data.items] }
-          : data)
-        setError('')
-      })
-      .catch((reason) => {
-        if (reason?.name === 'AbortError' || signal?.aborted) return
-        setError(friendlyError(reason))
-      })
-      .finally(() => { if (!signal?.aborted) setLoading(false) })
-  }, [response.page, response.page_size])
-
+  const { page, page_size: pageSize } = response
   useEffect(() => {
     if (authLoading) return undefined
-    if (!user) return undefined
     const controller = new AbortController()
-    const schedule = window.setTimeout(() => load(controller.signal), 0)
+    const { signal } = controller
+    const schedule = window.setTimeout(async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const data = await listTests({ page, pageSize, signal })
+        if (signal.aborted) return
+        setResponse(previous => data.page > 1
+          ? { ...data, items: [...previous.items.slice(0, (data.page - 1) * data.page_size), ...data.items] }
+          : data)
+      } catch (reason) {
+        if (!signal.aborted) setError(friendlyError(reason))
+      } finally {
+        if (!signal.aborted) setLoading(false)
+      }
+    }, 0)
     return () => {
       window.clearTimeout(schedule)
       controller.abort()
     }
-  }, [authLoading, user, load, revision])
+  }, [authLoading, page, pageSize, revision])
 
   const categories = useMemo(() => ['all', ...new Set(response.items.map((item) => item.kind))], [response.items])
   const visibleTests = filter === 'all' ? response.items : response.items.filter((item) => item.kind === filter)
@@ -110,8 +93,9 @@ function TestCatalogPage() {
   }
 
   async function handleStart(test) {
+    if (authLoading) return
     if (!user) {
-      navigate(authLinkTo('/login', location))
+      navigate(signIn)
       return
     }
     setStartingId(test.id)
@@ -133,30 +117,11 @@ function TestCatalogPage() {
     <div className="flex min-h-svh flex-col bg-canvas">
       <Navbar />
       <main className="mx-auto w-full max-w-6xl flex-1 px-5 pb-14 pt-10 md:px-8 md:pt-14">
-        <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
-          <div className="max-w-2xl">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-accent">Practice with purpose</p>
-            <h1 className="mt-3 text-3xl font-bold tracking-tight text-ink-heading md:text-4xl">Tests & mock exams</h1>
-            <p className="mt-3 text-base leading-7 text-ink-muted">Build confidence with timed NIMCET practice. Your answers save as you go, so you can safely resume an active attempt.</p>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm text-ink-muted shadow-card">
-            <ShieldCheck size={19} className="shrink-0 text-success" aria-hidden="true" />
-            <span>Answer keys stay hidden during every attempt.</span>
-          </div>
-        </div>
-
-        <div className="mt-8 grid gap-3 rounded-2xl bg-brand px-5 py-5 text-white sm:grid-cols-3 sm:px-7">
-          <div className="flex items-center gap-3"><Clock3 size={19} /><span className="text-sm text-white/85">Timed, server-controlled sessions</span></div>
-          <div className="flex items-center gap-3"><FileQuestion size={19} /><span className="text-sm text-white/85">Autosaved answer progress</span></div>
-          <div className="flex items-center gap-3"><Trophy size={19} /><span className="text-sm text-white/85">Review your result when released</span></div>
-        </div>
-
-        {!authLoading && !user && (
-          <section className="mt-8 flex flex-col items-start justify-between gap-4 rounded-xl border border-info-border bg-info-bg p-5 sm:flex-row sm:items-center">
-            <div><h2 className="font-semibold text-ink-heading">Sign in to browse and take tests</h2><p className="mt-1 text-sm text-ink-muted">Your test list, active attempts, and saved answers are tied to your account.</p></div>
-            <Button as={Link} to={authLinkTo('/login', location)}>Sign in <ArrowRight size={16} /></Button>
-          </section>
-        )}
+        <TestCatalogIntro
+          eyebrow="Practice with purpose"
+          title="Tests & mock exams"
+          description="Build confidence with timed NIMCET practice. Your answers save as you go, so you can safely resume an active attempt."
+        />
 
         <div className="mt-10 flex flex-wrap items-center gap-2" aria-label="Filter tests by type">
           {categories.map((category) => (
@@ -164,30 +129,21 @@ function TestCatalogPage() {
               {category === 'all' ? 'All tests' : KIND_LABELS[category] || category}
             </button>
           ))}
-          <button type="button" onClick={refreshTests} className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-sm font-medium text-ink-muted hover:bg-canvas-muted hover:text-ink-heading" aria-label="Refresh tests"><RefreshCw size={15} /> Refresh</button>
+          <TestCatalogRefresh onClick={refreshTests} />
         </div>
 
         {displayedError && <div className="mt-5 flex flex-col gap-3 rounded-xl border border-danger-border bg-danger-bg p-4 text-sm text-danger sm:flex-row sm:items-center sm:justify-between" role="alert"><span>{displayedError}</span><Button size="sm" variant="secondary" onClick={refreshTests}>Try again</Button></div>}
 
-        {!user && !authLoading ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-line-strong bg-canvas-muted px-6 py-14 text-center"><FileQuestion size={30} className="mx-auto text-ink-muted" /><h2 className="mt-4 text-lg font-semibold text-ink-heading">Sign in to see available tests</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-ink-muted">Published tests and active attempts are available to your signed-in account.</p></div>
-        ) : loading ? (
-          <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3" aria-label="Loading tests" aria-busy="true">{Array.from({ length: 6 }, (_, index) => <div key={index} className="h-60 animate-pulse rounded-2xl border border-line bg-canvas-muted" />)}</div>
+        {authLoading || loading ? (
+          <TestCatalogGrid loading />
         ) : error ? null : visibleTests.length ? (
-          <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {visibleTests.map((test) => {
-              const state = scheduleState(test, new Date())
-              const actionLabel = startingId === test.id ? 'Opening…' : state.label
-              return (
-                <article key={test.id} className="flex min-h-64 flex-col rounded-2xl border border-line bg-surface p-5 shadow-card transition-shadow hover:shadow-raised">
-                  <div className="flex items-start justify-between gap-3"><span className="rounded-full bg-canvas-subtle px-3 py-1 text-xs font-semibold text-ink-muted">{KIND_LABELS[test.kind] || test.kind}</span><span className="text-xs font-medium text-ink-muted">{test.examination_code}</span></div>
-                  <h2 className="mt-4 text-lg font-semibold leading-6 text-ink-heading">{test.title}</h2>
-                  <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-ink-muted"><span className="inline-flex items-center gap-1.5"><FileQuestion size={15} />{test.question_count} question{test.question_count === 1 ? '' : 's'}</span><span className="inline-flex items-center gap-1.5"><Clock3 size={15} />{formatDuration(test.duration_seconds)}</span></div>
-                  <div className="mt-auto flex items-center justify-between gap-3 border-t border-line pt-5 mt-5"><span className={`text-xs font-medium ${state.disabled ? 'text-ink-muted' : state.resume ? 'text-accent' : 'text-success'}`}>{state.resume ? 'Attempt in progress' : state.disabled ? state.label : `${Math.max(0, test.attempt_limit - test.attempts_used)} attempt${test.attempt_limit - test.attempts_used === 1 ? '' : 's'} available`}</span><Button size="sm" disabled={state.disabled || startingId === test.id} onClick={() => handleStart(test)}>{actionLabel} <ArrowRight size={15} /></Button></div>
-                </article>
-              )
-            })}
-          </div>
+          <TestCatalogGrid>
+            {visibleTests.map(test => (
+              <TestCatalogCard key={test.id} test={test} category={KIND_LABELS[test.kind] || test.kind}
+                signedIn={Boolean(user)} signIn={signIn} busy={Boolean(startingId)}
+                opening={startingId === test.id} onOpen={() => handleStart(test)} />
+            ))}
+          </TestCatalogGrid>
         ) : (
           <div className="mt-6 rounded-2xl border border-dashed border-line-strong bg-canvas-muted px-6 py-14 text-center"><FileQuestion size={30} className="mx-auto text-ink-muted" /><h2 className="mt-4 text-lg font-semibold text-ink-heading">No published tests yet</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-ink-muted">New mock exams and practice sets will appear here as they are published.</p><Button as={Link} to="/questions" variant="secondary" className="mt-5">Practice questions</Button></div>
         )}

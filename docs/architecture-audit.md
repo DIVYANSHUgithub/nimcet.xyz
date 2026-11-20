@@ -1,5 +1,7 @@
 # NIMCET.XYZ Architecture Audit
 
+> Historical repository-only audit from 2026-11-01. The repository and live Supabase project have changed since this snapshot. Use [the current Phase 0 audit](phase-0-audit-2026-11-05.md) for present-day architecture, database, and verification findings; this file is retained as historical context.
+
 **Audit scope:** repository checkout only, inspected 1 November 2026.  
 **Branch:** `codex/phase-0-architecture-audit`  
 **Verification limit:** the initial sandboxed schema request could not reach Supabase. A later authorized read-only anon REST check observed `public.questions` rows and public Auth settings, but did not expose catalog definitions or policies. Full live schema, Storage settings, Vercel settings, and production administration access remain unavailable. Database details below are labeled by source and must be confirmed before migrations.

@@ -79,12 +79,33 @@ class PYQModeRequest(BaseModel):
     shuffle_options: bool = False
 
 
+class PaperMarkingGroup(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    title: str = Field(min_length=1, max_length=160)
+    question_count: int = Field(ge=1, le=1000)
+    marks: Decimal = Field(gt=0, max_digits=8, decimal_places=3)
+    negative_marks: Decimal = Field(ge=0, max_digits=8, decimal_places=3)
+
+
 class PaperSectionBlueprint(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     code: str = Field(min_length=1,max_length=80)
     question_count: int = Field(ge=1,le=1000)
-    marks: Decimal = Field(gt=0,max_digits=8,decimal_places=3)
-    negative_marks: Decimal = Field(ge=0,max_digits=8,decimal_places=3)
+    duration_seconds: int | None = Field(default=None, gt=0, le=86400)
+    marks: Decimal | None = Field(default=None, gt=0, max_digits=8, decimal_places=3)
+    negative_marks: Decimal | None = Field(default=None, ge=0, max_digits=8, decimal_places=3)
+    marking_groups: list[PaperMarkingGroup] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode='after')
+    def check_marking_scheme(self):
+        if self.marking_groups:
+            if self.marks is not None or self.negative_marks is not None:
+                raise ValueError('Use either a uniform marking scheme or marking groups.')
+            if sum(group.question_count for group in self.marking_groups) != self.question_count:
+                raise ValueError('Marking groups must cover every question in the section.')
+        elif self.marks is None or self.negative_marks is None:
+            raise ValueError('Provide the marks and penalty for the section.')
+        return self
 
 
 class PYQApprovalRequest(BaseModel):
@@ -102,4 +123,9 @@ class PYQApprovalRequest(BaseModel):
             raise ValueError('Source provenance is required.')
         if self.paper.state != 'draft':
             raise ValueError('Only draft metadata can be approved.')
+        durations = [section.duration_seconds for section in self.sections]
+        if any(value is not None for value in durations) and (
+            any(value is None for value in durations) or sum(value or 0 for value in durations) != self.paper.duration_seconds
+        ):
+            raise ValueError('Timed sections must add up to the paper duration.')
         return self

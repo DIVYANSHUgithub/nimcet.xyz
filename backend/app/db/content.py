@@ -117,7 +117,7 @@ class ContentRepository:
                 valid = c.execute(text(
                     "SELECT 1 FROM public.topics st JOIN public.chapters t ON t.id=st.chapter_id "
                     "JOIN public.subjects s ON s.id=t.subject_id JOIN public.examinations e ON e.id=s.examination_id "
-                    "WHERE st.id=:subtopic_id AND s.name=:subject AND t.name=:topic AND e.code=:exam "
+                    "WHERE st.id=:subtopic_id AND s.name=:subject AND :topic IN (t.name,st.name) AND e.code=:exam "
                     "AND st.status='active' AND t.status='active' AND s.status='active' AND e.status='active' FOR SHARE OF st,t,s,e"
                 ), params).scalar_one_or_none()
                 if valid is None:

@@ -11,6 +11,14 @@ export function RequireSession({ children }) {
   return children
 }
 
+export function SignedOutOnly({ children, authPending = false }) {
+  const { user, loading } = useAuth()
+  if (loading) return <main className="app-recovery" role="status">Checking your sign-in…</main>
+  // An auth form that just created a session still owns its return navigation.
+  if (user && !authPending) return <Navigate to="/" replace />
+  return children
+}
+
 export function RouteAccessibility() {
   const { pathname } = useLocation()
   useEffect(() => {

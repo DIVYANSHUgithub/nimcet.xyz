@@ -8,7 +8,7 @@ import SignInBenefits from '../components/auth/SignInBenefits'
 import { getSupabaseConfigError, supabase } from '../lib/supabase'
 import { signInReturnPath } from '../lib/navigation'
 import { clearOAuthReturn } from '../lib/authReturn'
-import { useAuth } from '../context/useAuth'
+import { SignedOutOnly } from '../components/RouteAccess'
 import { isValidEmail } from '../utils/validateAuth'
 
 export default function Login() {
@@ -17,7 +17,6 @@ export default function Login() {
   const [isRecoveryLoading, setIsRecoveryLoading] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
-  const { user } = useAuth()
 
   const handleLogin = async ({ email, password }) => {
     if (!supabase) {
@@ -33,7 +32,6 @@ export default function Login() {
     } catch (error) {
       console.error('Login failed:', error)
       setToast(error.message || 'Unable to sign in. Check your email and password.')
-    } finally {
       setIsLoading(false)
     }
   }
@@ -62,20 +60,21 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col">
-      <Navbar />
-      <main className="flex flex-1 items-center py-10 md:py-14">
-        <div className="mx-auto w-full max-w-content px-5 md:px-8">
-          {user ? <p className="mx-auto mb-4 max-w-4xl text-sm text-ink-muted" role="status">You are already signed in.</p> : null}
-          <div className="mx-auto grid max-w-5xl grid-cols-1 overflow-hidden rounded-xl border border-line bg-surface shadow-sm lg:grid-cols-[1fr_1px_1fr]">
-            <LoginForm onSubmit={handleLogin} onForgotPassword={handleForgotPassword} isLoading={isLoading} isRecoveryLoading={isRecoveryLoading} />
-            <div className="hidden bg-line lg:block" aria-hidden="true" />
-            <SignInBenefits />
+    <SignedOutOnly authPending={isLoading}>
+      <div className="flex min-h-svh flex-col">
+        <Navbar />
+        <main className="flex flex-1 items-center py-10 md:py-14">
+          <div className="mx-auto w-full max-w-content px-5 md:px-8">
+            <div className="mx-auto grid max-w-5xl grid-cols-1 overflow-hidden rounded-xl border border-line bg-surface shadow-sm lg:grid-cols-[1fr_1px_1fr]">
+              <LoginForm onSubmit={handleLogin} onForgotPassword={handleForgotPassword} isLoading={isLoading} isRecoveryLoading={isRecoveryLoading} />
+              <div className="hidden bg-line lg:block" aria-hidden="true" />
+              <SignInBenefits />
+            </div>
           </div>
-        </div>
-      </main>
-      <Footer />
-      <Toast message={toast} onDismiss={() => setToast('')} />
-    </div>
+        </main>
+        <Footer />
+        <Toast message={toast} onDismiss={() => setToast('')} />
+      </div>
+    </SignedOutOnly>
   )
 }

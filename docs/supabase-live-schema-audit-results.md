@@ -1,5 +1,7 @@
 # NIMCET.XYZ Live Supabase Schema Audit Results
 
+> Historical catalog snapshot. The 2026-11-05 read-only re-audit in [Phase 0 audit](phase-0-audit-2026-11-05.md) is current where findings differ.
+
 **Status:** Read-only production audit results recorded  
 **Database:** Supabase PostgreSQL 17.6  
 **Scope:** Initial findings were supplied from the live audit. A follow-up SELECT-only catalog audit was run through the authenticated Supabase CLI on 2026-11-01 to verify exact PostgreSQL catalog metadata. No database changes were issued.
@@ -82,10 +84,10 @@ The findings above distinguish SQL grants from RLS policies: a direct SQL grant 
 
 - Function `public.rls_auto_enable()` exists.
 - It is owned by `postgres`, is `SECURITY DEFINER`, and has `search_path` set to `pg_catalog`.
-- Event trigger **`ensure_rls`** is registered but has enabled state `O` (disabled). Automatic RLS enablement must not be assumed active.
+- At the time of this historical snapshot, event trigger **`ensure_rls`** was recorded with enabled state `O` and described as disabled. The 2026-11-05 live recheck found `O` to be enabled; it listens for public table creation commands and invokes `public.rls_auto_enable()`.
 - Five extensions were found: `pg_stat_statements`, `pgcrypto`, `plpgsql`, `supabase_vault`, and `uuid-ossp`.
 
-The disabled event trigger is separate from the finding that `public` has no table triggers.
+The event trigger is separate from the finding that `public` has no table triggers. The current state is described in the 2026-11-05 Phase 0 audit.
 
 ### Question data
 

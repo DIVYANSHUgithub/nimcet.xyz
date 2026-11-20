@@ -33,6 +33,8 @@ class TestAuthoringRepository:
             ), {'search':search,'offset':(page-1)*30}).mappings().all()]
 
     def create_draft(self, *, actor_id: str, draft: CreateTestDraft, request_id: str) -> dict:
+        if draft.kind == 'pyq' and draft.visibility != 'public':
+            raise TestEngineForbidden('pyq_public_visibility_required')
         actor = UUID(actor_id)
         test_id = uuid4()
         with self.database.transaction() as connection:
@@ -116,11 +118,12 @@ class TestAuthoringRepository:
                 connection.execute(text('UPDATE public.test_versions SET created_by=:actor WHERE id=:id'),{'actor':actor,'id':version_id})
             for section in version.sections:
                 section_id = uuid4()
+                timed = section.duration_seconds is not None
                 connection.execute(
                     text(
                         "INSERT INTO public.test_sections "
-                        "(id,test_version_id,code,title,display_order) "
-                        "VALUES (:id,:version_id,:code,:title,:display_order)"
+                        "(id,test_version_id,code,title,display_order" + (",duration_seconds" if timed else "") + ") "
+                        "VALUES (:id,:version_id,:code,:title,:display_order" + (",:duration" if timed else "") + ")"
                     ),
                     {
                         "id": section_id,
@@ -128,6 +131,7 @@ class TestAuthoringRepository:
                         "code": section.code,
                         "title": section.title.strip(),
                         "display_order": section.display_order,
+                        "duration": section.duration_seconds,
                     },
                 )
                 for question in section.questions:
@@ -151,13 +155,20 @@ class TestAuthoringRepository:
                         or not 0 <= int(source["correct_option"]) <= 3
                     ):
                         raise TestEngineForbidden("question_unavailable")
+                    correct_option = (question.correct_option_override if question.correct_option_override is not None
+                                      else int(source['correct_option']))
+                    alternate = question.alternate_correct_option
+                    if alternate == correct_option:
+                        raise ValueError('Accepted options must be distinct.')
                     connection.execute(
                         text(
                             "INSERT INTO public.test_questions "
                             "(id,test_section_id,question_id,display_order,marks,negative_marks,question_snapshot,"
-                            "options_snapshot,correct_option_snapshot,explanation_snapshot) "
+                            "options_snapshot,correct_option_snapshot,explanation_snapshot"
+                            + (",alternate_correct_option_snapshot" if alternate is not None else "") + ") "
                             "VALUES (:id,:section_id,:question_id,:display_order,:marks,:negative_marks,:question,"
-                            "CAST(:options AS jsonb),:correct_option,:explanation)"
+                            "CAST(:options AS jsonb),:correct_option,:explanation"
+                            + (",:alternate" if alternate is not None else "") + ")"
                         ),
                         {
                             "id": uuid4(),
@@ -168,8 +179,9 @@ class TestAuthoringRepository:
                             "negative_marks": question.negative_marks,
                             "question": statement_text(source["question"], statement),
                             "options": json.dumps(options, ensure_ascii=False),
-                            "correct_option": int(source["correct_option"]),
-                            "explanation": source["explanation"],
+                            "correct_option": correct_option,
+                            "alternate": alternate,
+                            "explanation": question.explanation_override if question.explanation_override is not None else source['explanation'],
                         },
                     )
                     if self.phase5_enabled and statement:
@@ -177,7 +189,7 @@ class TestAuthoringRepository:
                         connection.execute(text(
                             'UPDATE public.test_questions SET question_blocks_snapshot=CAST(:statement AS jsonb),'
                             'explanation_blocks_snapshot=CAST(:explanation AS jsonb) WHERE test_section_id=:section_id AND question_id=:question_id'
-                        ), dict(statement=json.dumps(statement),explanation=json.dumps(doc['explanation'] if doc else []),section_id=section_id,question_id=source['id']))
+                        ), dict(statement=json.dumps(statement),explanation=json.dumps(doc['explanation'] if doc and question.explanation_override is None else []),section_id=section_id,question_id=source['id']))
                     question_count += 1
             self._audit(
                 connection,
@@ -204,7 +216,7 @@ class TestAuthoringRepository:
         with self.database.transaction() as connection:
             row = connection.execute(
                 text(
-                    "SELECT t.id AS test_id,t.kind,t.examination_code,t.status AS test_status,v.id AS version_id,v.version_number,v.status,v.duration_seconds,v.shuffle_questions,v.shuffle_options,to_jsonb(v)->>'workflow_state' AS workflow_state "
+                    "SELECT t.id AS test_id,t.kind,t.examination_code,t.visibility,t.status AS test_status,v.id AS version_id,v.version_number,v.status,v.duration_seconds,v.shuffle_questions,v.shuffle_options,to_jsonb(v)->>'workflow_state' AS workflow_state "
                     "FROM public.tests AS t JOIN public.test_versions AS v ON v.test_id=t.id "
                     "WHERE t.id=:test_id AND v.id=:version_id FOR UPDATE OF t,v"
                 ),
@@ -215,6 +227,8 @@ class TestAuthoringRepository:
             if self.workflows_enabled and row.get('workflow_state') != 'approved':
                 raise TestEngineForbidden('approval_required')
             if row['kind']=='pyq':
+                if row['visibility'] != 'public':
+                    raise TestEngineForbidden('pyq_public_visibility_required')
                 if not self.phase5_enabled:
                     raise TestEngineForbidden('pyq_approval_required')
                 from app.db.phase5 import validate_paper_version, paper_snapshot_digest, PAPER_QUESTIONS_SQL

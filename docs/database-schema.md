@@ -1,7 +1,7 @@
 # Proposed Database Schema
 
-**Phase:** Phase 1 design, updated with the Phase 3 catalog review.  
-**Compatibility status:** selected live `questions` facts are verified; the rest of this schema remains a target proposal. See `supabase-live-schema-audit-results.md` for verified and pending items.
+**Phase:** Phase 1 design reconciled against the read-only live catalog on 2026-11-06.
+**Compatibility status:** live table/column/FK facts are recorded in `phase-1-schema-reconciliation-2026-11-06.md` and `phase-0-audit-2026-11-05.md`; entities below remain a mix of deployed schema and target proposal.
 
 ## Design principles
 
@@ -16,7 +16,7 @@
 
 ## Existing table: compatibility boundary
 
-The checkout README documents `questions` columns `id`, `exam`, `exam_year`, `section`, `question_number`, `question`, `options`, `correct_option`, `explanation`, `subject`, `topic`, `difficulty`, `source`, `status`, and `created_at`. The live audit verifies 15 columns, JSONB `options`, nullable integer `correct_option`, text `status`, the listed constraint/index categories, and the question distributions. Exact column names/types/defaults and exact constraint expressions beyond those reported remain pending; see `supabase-live-schema-audit-results.md`.
+The live catalog verifies `questions.id bigint`, JSONB `options`, nullable integer `correct_option`, text `status`, and the exact 15-column shape. The current question table also retains legacy text `subject`/`topic` labels. Exact facts and the current live policy/view drift are recorded in `phase-0-audit-2026-11-05.md`; `supabase-live-schema-audit-results.md` is a historical snapshot where it conflicts.
 
 The earlier API audit observed values compatible with zero-based `correct_option` indexing, while the live catalog summary verifies only its nullable integer type and the existence of a check constraint. Preserve the field and its current meaning until the exact check and row semantics are reconciled. The current frontend reads `select('*')`, so tests must never reuse that response projection.
 
@@ -37,21 +37,21 @@ The earlier API audit observed values compatible with zero-based `correct_option
 | `examinations` | `id uuid PK`, `code text UNIQUE NOT NULL` (e.g. `NIMCET`), `name`, `status`, timestamps. `code` is stable API/config key. |
 | `sections` | `id uuid PK`, `examination_id FK`, `code`, `name`, `display_order`, `status`; unique `(examination_id, code)`. A section is an examination-level component, not an academic subject or a section inside a particular test version. |
 | `subjects` | `id uuid PK`, `examination_id FK`, `code`, `name`, `display_order`, `status`; unique `(examination_id, code)`. |
-| `chapters` | `id uuid PK`, `subject_id FK`, `code`, `name`, `display_order`, `status`; unique `(subject_id, code)`. |
-| `topics` | `id uuid PK`, `chapter_id FK`, `code`, `name`, `display_order`, `status`; unique `(chapter_id, code)`. |
-| `question_taxonomy` | `question_id` FK to the verified legacy type, `topic_id FK`, optional source section label; composite PK `(question_id, topic_id)`. Supports multiple topics without duplicating question text. |
+| `topics` (target vocabulary; live storage counterpart: `chapters`) | `id uuid PK`, parent `subject_id`, `code`, `name`, `display_order`, `status`; unique within subject. Adapter mapping must be approved before use. |
+| `subtopics` (target vocabulary; live storage counterpart: `topics`) | `id uuid PK`, parent topic ID, `code`, `name`, `display_order`, `status`; unique within parent. Adapter mapping must be approved before use. |
+| `question_taxonomy` | `question_id` FK to verified legacy `bigint` key, `subtopic_id FK`, optional source section label; composite PK `(question_id, subtopic_id)`. Supports multiple taxonomy assignments without duplicating question text. |
 
 #### Section and subject distinction
 
-An examination owns both its exam sections and its academic subjects. These are separate catalog dimensions: an exam section describes the paper structure, while a subject is the academic classification that contains chapters and topics. The audit observed the same four labels in `questions.section` and `questions.subject`; the verified section counts are Mathematics 50, Analytical Ability & Logical Reasoning 22, Computer Awareness 20, and General English 10. Matching current labels do not prove the concepts are interchangeable or that future exams have a one-to-one mapping.
+An examination owns both its exam sections and its academic subjects. These are separate catalog dimensions: an exam section describes the paper structure, while a subject is the academic classification that contains target topics and subtopics (stored today as chapters and topics). The audit observed the same four labels in `questions.section` and `questions.subject`; the verified section counts are Mathematics 50, Analytical Ability & Logical Reasoning 22, Computer Awareness 20, and General English 10. Matching current labels do not prove the concepts are interchangeable or that future exams have a one-to-one mapping.
 
-Keep `sections` and `subjects` independently linked to `examinations`; do not impose a section-to-subject FK or one-to-one mapping until an official exam blueprint establishes that relationship. `chapters` and `topics` remain under subjects. A future legacy bridge maps the existing `questions.section` string to the exam-section catalog and the subject/topic strings to the academic taxonomy separately. The question FK type and mapping remain pending; no existing question field is changed by the catalog migration. `test_sections` are a separate per-test-version construct.
+Keep `sections` and `subjects` independently linked to `examinations`; do not impose a section-to-subject FK or one-to-one mapping until an official exam blueprint establishes that relationship. Live storage currently uses `subjects → chapters → topics`; target API vocabulary is `subjects → topics → subtopics`. Preserve all deployed relation names and IDs during rollout; map existing `chapters` to target topics and existing `topics` to target subtopics only after actual labels are reviewed and approved. A future legacy bridge maps `questions.section` to the exam-section catalog and subject/topic strings to the academic taxonomy separately. The question FK type is verified as `bigint`, but assignment mapping remains pending. No existing question field is changed by this design. `test_sections` are a separate per-test-version construct.
 
 Legacy string columns remain query-compatible during rollout. Add structured taxonomy references only after taxonomy values are reconciled; do not auto-create duplicate taxonomy labels from inconsistent casing/spacing.
 
 #### Status and availability semantics
 
-`active` means an item is available for future catalog selection; `inactive` means it is retained but unavailable for new student-facing selection. Deactivation is not deletion. An item is effectively available only when it and every ancestor are active: an active subject under an inactive examination is unavailable; an active chapter under an inactive subject/examination is unavailable; an active topic under an inactive chapter/subject/examination is unavailable. An inactive exam section also makes content mapped to that section unavailable. Student-facing repositories must join the full ancestry and apply these status checks; filtering only the leaf row is insufficient. Admin/audit views may inspect inactive entries under separately authorized access.
+`active` means an item is available for future catalog selection; `inactive` means it is retained but unavailable for new student-facing selection. Deactivation is not deletion. An item is effectively available only when it and every ancestor are active: a target topic (stored as a live chapter) under an inactive subject/examination is unavailable; a target subtopic (stored as a live topic) under an inactive target topic/subject/examination is unavailable. An inactive exam section also makes content mapped to that section unavailable. Student-facing repositories must join the full ancestry and apply these status checks; filtering only the leaf row is insufficient. Admin/audit views may inspect inactive entries under separately authorized access.
 
 #### Timestamp ownership
 
@@ -160,3 +160,12 @@ RLS SQL is intentionally not supplied before current policies and connection mod
 - Supabase PostgreSQL version and deployed connection/pooling mode.
 
 Until these facts are captured, this document supports architecture review only; it is not permission to apply DDL.
+
+
+## Local admin workflow extension — 2026-11-16
+
+The CLI-created `20261115231354_admin_workflows.sql` draft follows Phase 2/Phase 5. It adds `account_status`, one-active-primary-role uniqueness, version workflow state/actors/reason/revision, review/deadline indexes, media archive metadata and frozen submitted/approved snapshots. It adds a non-public trusted Auth registration trigger for new Student assignments and a system audit record; it does not backfill users or bootstrap privileged roles.
+
+The independent test publication `status` remains draft/published/archived. Editorial `workflow_state` is draft/submitted/approved/rejected. Suspension of test availability changes the parent test status to draft while retaining its published versions and existing attempt snapshots; resume requires a published version. Account suspension is separate from Auth session revocation. RLS and explicit browser-role revokes protect the new table; runtime grants are conditional on the existing backend login.
+
+Complete migration replay and isolated PostgreSQL constraint/permission assertions passed. This is a local draft rather than production DDL authorization. See `admin-development-2026-11-16.md` for exact configuration, grant order, rehearsal limits and owner-approval gates.
