@@ -2,7 +2,7 @@ export const legalDetails = {
   operatorName: 'Divyanshu Mishra',
   postalAddress: 'Netaram Chauraha, Prayagraj, Uttar Pradesh 211002, India',
   email: 'nimcet.xyz@gmail.com',
-  origin: 'https://nimcet.xyz',
+  origin: 'https://www.nimcet.xyz',
   updated: '2026-11-18',
   updatedLabel: '18 November 2026',
 }

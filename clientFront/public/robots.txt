@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /login
+Disallow: /signup
+Disallow: /reset-password
+Disallow: /results
+Disallow: /attempts/
+
+Sitemap: https://www.nimcet.xyz/sitemap.xml
