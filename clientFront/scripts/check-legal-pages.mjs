@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import { JSDOM } from 'jsdom'
+import { aboutPage } from '../src/lib/about.js'
 import { legalLinks, legalDetails, clearPrerenderedLegalMetadata } from '../src/lib/legal.js'
 
 const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'https://legal.test/privacy-policy' })
@@ -26,9 +27,9 @@ const server = await createServer({ configFile: false, envDir: false,
 let root
 try {
   const vercel = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'))
-  for (const page of legalLinks) {
+  for (const page of [...legalLinks, aboutPage]) {
     const rule = vercel.rewrites.find(rule => rule.source === page.to || rule.source === '/(.*)')
-    assert.equal(rule?.destination, `${page.to}.html`, 'Static legal rewrites must precede the SPA fallback')
+    assert.equal(rule?.destination, `${page.to}.html`, 'Static rewrites must precede the SPA fallback')
   }
   const { default: App } = await server.ssrLoadModule('/src/App.jsx')
   for (const page of legalLinks) {
@@ -81,6 +82,40 @@ try {
     }
     console.log(`PASS ${page.to}: anonymous route, headings, links, metadata, SPA navigation and static HTML`)
   }
+
+  const aboutHtml = await readFile(new URL('../dist/about.html', import.meta.url), 'utf8')
+  const aboutDocument = new JSDOM(aboutHtml).window.document
+  const aboutTitle = `${aboutPage.title} — NIMCET.XYZ`
+  const aboutHeading = 'About NIMCET.XYZ'
+  const aboutUrl = `${legalDetails.origin}${aboutPage.to}`
+  assert.equal(aboutDocument.title, aboutTitle)
+  assert.equal(aboutDocument.querySelector('h1').textContent, aboutHeading)
+  assert.equal(aboutDocument.querySelector('link[rel="canonical"]').href, aboutUrl)
+  const sitemap = await readFile(new URL('../dist/sitemap.xml', import.meta.url), 'utf8')
+  assert.ok(sitemap.includes(`<loc>${aboutUrl}</loc>`))
+  document.head.innerHTML = aboutDocument.head.innerHTML
+  document.getElementById('root').innerHTML = aboutDocument.getElementById('root').innerHTML
+  clearPrerenderedLegalMetadata(document)
+  window.history.replaceState(null, '', aboutPage.to)
+  root = createRoot(document.getElementById('root'))
+  await act(async () => root.render(React.createElement(App)))
+  for (let i = 0; i < 50 && document.querySelector('h1')?.textContent !== aboutHeading; i++) {
+    await act(async () => new Promise(resolve => setTimeout(resolve, 20)))
+  }
+  assert.equal(window.location.pathname, aboutPage.to)
+  assert.equal(document.title, aboutTitle)
+  assert.equal(document.querySelectorAll('h1').length, 1)
+  assert.equal(document.querySelector('h1').textContent, aboutHeading)
+  assert.equal(document.querySelectorAll('link[rel="canonical"]').length, 1)
+  assert.equal(document.querySelector('meta[name="description"]').content, aboutPage.description)
+  assert.ok(document.querySelector('nav[aria-label="Main navigation"] a[href="/about"][aria-current="page"]'))
+  assert.ok(document.querySelector('footer a[href="/about"][aria-current="page"]'))
+  await act(async () => document.querySelector('button[aria-label="Open menu"]').click())
+  assert.ok(document.querySelector('nav[aria-label="Mobile navigation"] a[href="/about"][aria-current="page"]'))
+  for (const destination of ['/questions', '/pyq', '/tests', '/results', '/contact', 'https://nimcet.admissions.nic.in/']) {
+    assert.ok(document.querySelector(`main a[href="${destination}"]`), `Missing About link ${destination}`)
+  }
+  console.log('PASS /about: anonymous route, desktop and mobile navigation, study links, static HTML and sitemap')
   assert.deepEqual(errors, [], 'No React console errors expected')
 } finally {
   if (root) await act(async () => root.unmount())

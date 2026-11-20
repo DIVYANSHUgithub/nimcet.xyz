@@ -13,6 +13,7 @@ const navLinks = [
   { label: 'Tests', to: '/tests' },
   { label: 'PYQ', to: '/pyq' },
   { label: 'My results', to: '/results' },
+  { label: 'About', to: '/about' },
 ]
 
 export default function Navbar() {
@@ -67,7 +68,6 @@ export default function Navbar() {
               </Link>
             ) : null
           )}
-          <Link to="/#about" className={linkClass(false)}>About</Link>
         </nav>
 
         <div className="flex items-center gap-2">
@@ -148,7 +148,6 @@ export default function Navbar() {
               </Link>
             ) : null
           )}
-          <Link to="/#about" className="border-b border-line py-3 text-[0.9375rem] font-medium text-ink" onClick={() => setMenuOpen(false)}>About</Link>
           {!user && !isLoginPage && (
             <Link
               to={authLinkTo('/login', location)}
