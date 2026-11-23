@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlparse
+from uuid import UUID
 
 import jwt
 from jwt import PyJWKClient
@@ -26,6 +27,7 @@ class VerifiedIdentity:
     subject: str
     issuer: str
     audience: str | list[str]
+    session_id: UUID | None = None
 
 
 class TokenVerifier(Protocol):
@@ -142,6 +144,7 @@ class SupabaseTokenVerifier:
                 subject=subject,
                 issuer=claims["iss"],
                 audience=audience,
+                session_id=UUID(claims["session_id"]) if isinstance(claims.get("session_id"), str) else None,
             )
         except AuthNotConfigured:
             raise
@@ -166,3 +169,4 @@ class StudentOnlyRoleResolver:
 class Principal:
     user_id: str
     roles: frozenset[str]
+    session_id: UUID | None = None

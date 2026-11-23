@@ -219,6 +219,8 @@ class PublicTestSummary(BaseModel):
     attempts_used: int = Field(ge=0)
     attempt_limit: int = Field(ge=1)
     active_attempt_id: str | None = None
+    pass_required: bool = False
+    locked: bool = False
 
 
 class PublicTestListResponse(BaseModel):
@@ -227,6 +229,7 @@ class PublicTestListResponse(BaseModel):
     page_size: int = Field(ge=1, le=50)
     total: int = Field(ge=0)
     has_more: bool
+    payments_enabled: bool = False
 
 
 class ResultSection(BaseModel):

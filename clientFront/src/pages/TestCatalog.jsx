@@ -23,6 +23,7 @@ function friendlyError(error) {
   if (error instanceof ApiRequestError) {
     if (error.status === 401) return 'Sign out and sign in again to take a test.'
     if (error.code === 'account_suspended') return 'Application access is suspended. Contact an administrator.'
+    if (error.code === 'student_pass_required' || error.code === 'device_slot_conflict') return error.message
     if (error.status === 403) {
       if (error.code === 'attempt_limit_reached') return 'You have used all attempts allowed for this test.'
       if (error.code === 'test_closed') return 'This test is closed.'
@@ -130,6 +131,7 @@ function TestCatalogPage() {
             </button>
           ))}
           <TestCatalogRefresh onClick={refreshTests} />
+          {response.payments_enabled && <Button as={Link} size="sm" variant="secondary" to="/student-pass">Student Pass</Button>}
         </div>
 
         {displayedError && <div className="mt-5 flex flex-col gap-3 rounded-xl border border-danger-border bg-danger-bg p-4 text-sm text-danger sm:flex-row sm:items-center sm:justify-between" role="alert"><span>{displayedError}</span><Button size="sm" variant="secondary" onClick={refreshTests}>Try again</Button></div>}

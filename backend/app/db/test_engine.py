@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import text
 
 from app.db.database import Database
+from app.db.payments import has_active_pass
 from app.domain.results import result_metrics
 from app.domain.test_engine import (
     QuestionSnapshot,
@@ -103,9 +104,10 @@ def _review_release_time(
 class TestEngineRepository:
     """Transactional test attempt operations over the Phase 8 draft schema."""
 
-    def __init__(self, database: Database, phase5_enabled: bool = False):
+    def __init__(self, database: Database, phase5_enabled: bool = False, payments_enabled: bool = False):
         self.database = database
         self.phase5_enabled = phase5_enabled
+        self.payments_enabled = payments_enabled
 
     def get_attempt_result(self, *, attempt_id: str, user_id: str) -> dict[str, Any]:
         attempt_uuid, user_uuid = map(_as_uuid, (attempt_id, user_id))
@@ -341,6 +343,7 @@ class TestEngineRepository:
         page_size = min(50, max(1, int(page_size)))
         offset = (page - 1) * page_size
         with self.database.read_only_transaction() as connection:
+            active_pass = self.payments_enabled and user_uuid is not None and has_active_pass(connection, user_uuid)
             total = int(connection.execute(
                 text(
                     "SELECT count(*) FROM public.tests AS t "
@@ -357,6 +360,7 @@ class TestEngineRepository:
                     "WHERE status='published' ORDER BY test_id,version_number DESC"
                     ") SELECT t.id,t.title,t.kind,t.examination_code,v.duration_seconds,"
                     "v.available_from,v.available_until,v.attempt_limit,v.version_number,"
+                    "COALESCE((to_jsonb(t)->>'pass_required')::boolean,true) AS pass_required,"
                     "count(DISTINCT q.id)::integer AS question_count,"
                     "count(DISTINCT a.id)::integer AS attempts_used,"
                     "(array_agg(a.id ORDER BY a.started_at DESC) FILTER (WHERE a.status='in_progress'))[1] AS active_attempt_id "
@@ -385,6 +389,9 @@ class TestEngineRepository:
                     "attempts_used": int(row["attempts_used"]),
                     "attempt_limit": int(row["attempt_limit"]),
                     "active_attempt_id": str(row["active_attempt_id"]) if row["active_attempt_id"] else None,
+                    "pass_required": bool(self.payments_enabled and row["pass_required"]),
+                    "locked": bool(self.payments_enabled and row["pass_required"] and not active_pass
+                                   and not row["active_attempt_id"]),
                 }
                 for row in rows
             ],
@@ -392,6 +399,7 @@ class TestEngineRepository:
             "page_size": page_size,
             "total": total,
             "has_more": offset + len(rows) < total,
+            "payments_enabled": self.payments_enabled,
         }
 
     def start_attempt(self, *, test_id: str, user_id: str, version_id: str | None = None) -> dict[str, Any]:
@@ -404,7 +412,8 @@ class TestEngineRepository:
                     "SELECT t.id AS test_id, t.kind, t.visibility, t.owner_id, t.status AS test_status, "
                     "v.id AS test_version_id, v.status AS version_status, v.duration_seconds, "
                     "v.attempt_limit, v.available_from, v.available_until, v.shuffle_questions, "
-                    "v.shuffle_options, clock_timestamp() AS server_time "
+                    "v.shuffle_options, clock_timestamp() AS server_time, "
+                    "COALESCE((to_jsonb(t)->>'pass_required')::boolean,true) AS pass_required "
                     "FROM public.tests AS t JOIN public.test_versions AS v ON v.test_id = t.id "
                     "WHERE t.id = :test_id AND (CAST(:version_id AS uuid) IS NULL OR v.id=CAST(:version_id AS uuid)) AND t.status = 'published' AND v.status = 'published' "
                     "AND (t.visibility = 'public' OR t.owner_id = :user_id) "
@@ -433,6 +442,9 @@ class TestEngineRepository:
             if active is not None:
                 active_id = str(active)
             else:
+                if (self.payments_enabled and version["kind"] != "pyq" and version["pass_required"]
+                        and not has_active_pass(connection, user_uuid)):
+                    raise TestEngineForbidden("student_pass_required")
                 attempts_used = int(connection.execute(
                     text(
                         "SELECT count(*) FROM public.test_attempts "

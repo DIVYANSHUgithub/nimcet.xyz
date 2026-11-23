@@ -36,6 +36,8 @@ def deployment_errors(settings: Settings) -> list[str]:
         errors.append("Enable TEST_ENGINE_ENABLED and TRUSTED_ROLE_LOOKUP_ENABLED for the student MVP.")
     if settings.phase5_enabled and not settings.question_authoring_enabled:
         errors.append("Enable QUESTION_AUTHORING_ENABLED with PHASE5_ENABLED for the PYQ release.")
+    if settings.payments_enabled and not settings.payments_configured:
+        errors.append("Payments require the test engine, trusted roles, admin workflows and distinct Razorpay secrets.")
     try:
         url = make_url(settings.database_url.get_secret_value() if settings.database_url else "")
         if url.drivername not in {"postgresql", "postgresql+psycopg"} or url.query.get("sslmode") != "verify-full":

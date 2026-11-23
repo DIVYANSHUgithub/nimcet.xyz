@@ -24,7 +24,9 @@ class TestAuthoringRepository:
     def list_tests(self, *, page: int, search: str) -> list[dict]:
         with self.database.read_only_transaction() as connection:
             return [dict(row) for row in connection.execute(text(
-                'SELECT t.id,t.title,t.examination_code,t.kind,t.status,t.visibility,'
+                "SELECT t.id,t.title,t.examination_code,t.kind,t.status,t.visibility,"
+                "CASE WHEN to_jsonb(t) ? 'pass_required' THEN t.kind<>'pyq' "
+                "AND COALESCE((to_jsonb(t)->>'pass_required')::boolean,true) END AS pass_required,"
                 'v.id AS version_id,v.version_number,v.status AS version_status,v.workflow_state '
                 "FROM public.tests t LEFT JOIN LATERAL (SELECT id,version_number,status,to_jsonb(tv)->>'workflow_state' AS workflow_state FROM public.test_versions tv "
                 'WHERE test_id=t.id ORDER BY version_number DESC LIMIT 1) v ON true '

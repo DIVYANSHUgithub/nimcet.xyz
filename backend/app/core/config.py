@@ -35,11 +35,23 @@ class Settings(BaseSettings):
     question_authoring_enabled: bool = False
     phase5_enabled: bool = False
     admin_workflows_enabled: bool = False
+    payments_enabled: bool = False
+    payments_checkout_enabled: bool = True
+    razorpay_key_id: str | None = None
+    razorpay_key_secret: SecretStr | None = None
+    razorpay_webhook_secret: SecretStr | None = None
     supabase_admin_key: SecretStr | None = None
     storage_bucket: str = "question-media"
     supabase_storage_key: SecretStr | None = None
 
     cors_allowed_origins: str = "http://localhost:5173"
+
+    @property
+    def payments_configured(self) -> bool:
+        return bool(self.test_engine_enabled and self.trusted_role_lookup_enabled
+                    and self.admin_workflows_enabled and self.razorpay_key_id
+                    and self.razorpay_key_secret and self.razorpay_webhook_secret
+                    and self.razorpay_key_secret != self.razorpay_webhook_secret)
 
     @property
     def cors_origins(self) -> list[str]:

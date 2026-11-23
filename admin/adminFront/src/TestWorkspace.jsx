@@ -47,6 +47,17 @@ export default function TestWorkspace({ roles }) {
     <label>Test<select value={selected} disabled={busy} onChange={e => { setSelected(e.target.value); setTemplate(null) }}><option value="">Select a test</option>{tests.map(item => <option key={item.id} value={item.id}>{item.title} · {item.status} · {item.version_number ? `v${item.version_number} ${item.version_status}` : 'no versions'}</option>)}</select></label>
     {loadedKey === key && !error && tests.length === 0 && <p>No tests match your search.</p>}
     <div className="admin-role-actions"><button className="admin-secondary" disabled={page === 1 || busy} onClick={() => setPage(p => p - 1)}>Previous</button><button className="admin-secondary" disabled={tests.length < 30 || busy} onClick={() => setPage(p => p + 1)}>Next</button><button className="admin-secondary" onClick={() => setRevision(r => r + 1)}>Refresh</button></div>
+    {test?.pass_required != null && <div className="admin-role-actions">
+      <span>{test.pass_required ? 'Student Pass required' : 'Free test'}</span>
+      {test.kind !== 'pyq' && roles.some(role => ['administrator', 'super_administrator'].includes(role)) &&
+        <button className="admin-secondary" disabled={busy} onClick={async () => {
+          setBusy(true); setError(''); setMessage('')
+          try {
+            await backendRequest(`admin/payments/tests/${test.id}`, { method: 'PATCH', body: { pass_required: !test.pass_required } })
+            setRevision(r => r + 1); setMessage('Test access updated.')
+          } catch (err) { setError(err.message) } finally { setBusy(false) }
+        }}>{test.pass_required ? 'Make free' : 'Require Student Pass'}</button>}
+    </div>}
     {test && <><VersionReview key={test.id} test={test} roles={roles} refreshKey={revision} onRevise={detail => setTemplate(detail)} onSaved={() => setRevision(r => r + 1)} />
       <VersionForm key={`${test.id}:${template?.id ?? 'new'}`} initialVersion={template} test={test} onSaved={() => setRevision(r => r + 1)} /></>}
   </section>

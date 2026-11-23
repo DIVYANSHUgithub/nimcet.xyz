@@ -14,7 +14,10 @@ def readiness(request: Request) -> dict[str, str]:
     auth_ready = request.app.state.token_verifier.configured
     settings = request.app.state.settings
     authorization_ready = not settings.admin_workflows_enabled or settings.trusted_role_lookup_enabled
-    if not database_ready or not auth_ready or not authorization_ready:
+    payments_ready = not settings.payments_enabled or (
+        database_ready and settings.payments_configured and request.app.state.payment_repository.ready()
+    )
+    if not database_ready or not auth_ready or not authorization_ready or not payments_ready:
         raise HTTPException(
             status_code=503,
             detail={"code": "not_ready", "message": "Required backend dependencies are not ready."},

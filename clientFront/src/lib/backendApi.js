@@ -74,6 +74,9 @@ export function createBackendApi({
       }
       if (!response.ok) {
         const error = responseBody?.error
+        if (error?.code === 'device_slot_conflict' && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('nimcet-device-conflict', { detail: error.message }))
+        }
         const featureMessage = { admin_workflows_not_enabled: 'Administrative workflows are awaiting activation.', content_not_enabled: 'Question management is not available yet.', phase5_not_enabled: 'PYQ papers and detailed summaries are not available yet.', storage_not_configured: 'Image uploads are not available yet.' }[error?.code]
         throw new ApiRequestError(featureMessage ?? (typeof error?.message === 'string' ? error.message : 'The request could not be completed.'),
           { status: response.status, code: typeof error?.code === 'string' ? error.code : 'request_failed' })

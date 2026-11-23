@@ -47,6 +47,11 @@ def _handle_domain_error(exc: Exception) -> HTTPException:
             detail={"code": "attempt_not_found", "message": "The attempt was not found."},
         )
     if isinstance(exc, TestEngineForbidden):
+        if exc.code == "student_pass_required":
+            return HTTPException(
+                status_code=403,
+                detail={"code": exc.code, "message": "An active Student Pass is required to start this test."},
+            )
         if exc.code == "test_unavailable":
             return HTTPException(
                 status_code=404,

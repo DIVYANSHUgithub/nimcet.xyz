@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3, FileQuestion, RefreshCw, ShieldCheck, Trophy } from 'lucide-react'
+import { ArrowRight, Clock3, FileQuestion, LockKeyhole, RefreshCw, ShieldCheck, Trophy } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Button from '../ui/Button'
 
@@ -72,7 +72,7 @@ export function TestCatalogCard({ test, category, signedIn, signIn, busy, openin
     <article className="flex min-h-64 min-w-0 flex-col rounded-2xl border border-line bg-surface p-5 shadow-card transition-shadow hover:shadow-raised">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <span className="rounded-full bg-canvas-subtle px-3 py-1 text-xs font-semibold text-ink-muted">{category}</span>
-        <span className="text-xs font-medium text-ink-muted">{test.examination_code}</span>
+        <span className="text-xs font-medium text-ink-muted">{test.pass_required ? 'Student Pass' : test.examination_code}</span>
       </div>
       <h2 className="mt-4 text-lg font-semibold leading-6 text-ink-heading">{test.title}</h2>
       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-ink-muted">
@@ -83,9 +83,11 @@ export function TestCatalogCard({ test, category, signedIn, signIn, busy, openin
       <div className="mt-auto pt-5">
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
           <span className={`min-w-0 break-words text-xs font-medium ${state.disabled ? 'text-ink-muted' : state.resume ? 'text-accent' : 'text-success'}`}>
-            {state.resume ? 'Attempt in progress' : state.disabled ? state.label : availability}
+            {test.locked ? <span className="inline-flex items-center gap-1"><LockKeyhole size={14} aria-hidden="true" /> Pass required</span>
+              : state.resume ? 'Attempt in progress' : state.disabled ? state.label : availability}
           </span>
-          {!signedIn && !state.disabled
+          {test.locked ? <Button as={Link} size="sm" to="/student-pass">Buy Pass <ArrowRight size={15} aria-hidden="true" /></Button>
+            : !signedIn && !state.disabled
             ? <Button as={Link} size="sm" to={signIn}>Sign in to start <ArrowRight size={15} aria-hidden="true" /></Button>
             : <Button size="sm" className="max-w-full whitespace-normal text-left" disabled={state.disabled || busy} onClick={onOpen}>
               {opening ? 'Opening…' : state.label} <ArrowRight className="shrink-0" size={15} aria-hidden="true" />

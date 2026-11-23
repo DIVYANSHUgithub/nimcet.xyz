@@ -20,8 +20,10 @@ from app.core.errors import (
 from app.core.logging import configure_logging
 from app.core.security import RoleResolver, StudentOnlyRoleResolver, SupabaseTokenVerifier, TokenVerifier
 from app.db.database import Database
+from app.db.payments import PaymentRepository
 from app.db.roles import DatabaseRoleResolver
 from app.db.test_engine import TestEngineRepository
+from app.services.razorpay import Razorpay
 
 logger = logging.getLogger("nimcet.http")
 
@@ -56,7 +58,11 @@ def create_app(
     app.state.settings = settings
     db_url = settings.database_url.get_secret_value() if settings.database_url else None
     app.state.database = database or Database(db_url, **settings.database_options())
-    app.state.test_engine_repository = test_engine_repository or TestEngineRepository(app.state.database, phase5_enabled=settings.phase5_enabled)
+    app.state.test_engine_repository = test_engine_repository or TestEngineRepository(
+        app.state.database, phase5_enabled=settings.phase5_enabled, payments_enabled=settings.payments_enabled
+    )
+    app.state.payment_repository = PaymentRepository(app.state.database)
+    app.state.razorpay = Razorpay(settings)
     app.state.token_verifier = token_verifier or SupabaseTokenVerifier(settings)
     # Until the role schema is verified and migrated, authenticated users receive only
     # the ordinary student role. Token metadata never grants elevated privileges.

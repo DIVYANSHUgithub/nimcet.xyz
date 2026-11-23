@@ -9,6 +9,7 @@ const Overview = lazy(() => import('./OperationsPanel').then(module => ({ defaul
 const Activity = lazy(() => import('./OperationsPanel').then(module => ({ default: module.ActivityPanel })))
 const Reviews = lazy(() => import('./VersionReview').then(module => ({ default: module.ReviewQueue })))
 const Tests = lazy(() => import('./TestWorkspace'))
+const Payments = lazy(() => import('./PaymentsWorkspace'))
 
 export default function AdminWorkspace({ roles, overview }) {
   const [active, setActive] = useState('overview')
@@ -17,6 +18,7 @@ export default function AdminWorkspace({ roles, overview }) {
   if (roles.some(role => ['test_manager', 'administrator', 'super_administrator'].includes(role))) tabs.push({ id: 'tests', label: 'Test authoring', content: <Tests roles={roles} /> }, { id: 'papers', label: 'PYQ verification', content: <Papers roles={roles} /> })
   if (roles.some(role => ['administrator','super_administrator'].includes(role))) tabs.push({ id: 'reviews', label: 'Review queue', content: <Reviews roles={roles} /> }, { id: 'users', label: roles.includes('super_administrator') ? 'Users & roles' : 'Users', content: <Users roles={roles} /> }, { id: 'attempts', label: 'Attempts & results', content: <Monitoring /> })
   if (roles.includes('super_administrator')) tabs.push({ id: 'audit', label: 'Activity', content: <Activity /> })
+  if (roles.some(role => ['administrator', 'super_administrator'].includes(role))) tabs.push({ id: 'payments', label: 'Student Pass', content: <Payments /> })
   const selected = tabs.some(tab => tab.id === active) ? active : 'overview'
   function activate(id) {
     setActive(id)
