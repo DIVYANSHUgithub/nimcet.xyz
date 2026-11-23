@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, BookOpen, ClipboardList, History, KeyRound, UserRound } from 'lucide-react'
 import Button from '../components/ui/Button'
 import PageShell from '../components/ui/PageShell'
 import ProfileProgress from '../components/ProfileProgress'
 import { useAuth } from '../context/useAuth'
+import { backendGet } from '../lib/backendApi'
 import { supabase } from '../lib/supabase'
 import { formatDisplayDate } from '../utils/formatDate'
 import { isValidEmail } from '../utils/validateAuth'
@@ -17,6 +18,49 @@ const shortcuts = [
   { to: '/questions', icon: BookOpen, label: 'Practice questions' },
   { to: '/pyq', icon: History, label: 'Previous-year questions' },
 ]
+
+function AccountTier() {
+  const [result, setResult] = useState(null)
+  const [revision, setRevision] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    backendGet('payments/pass', { signal: controller.signal })
+      .then(pass => {
+        if (!controller.signal.aborted) setResult({ pass })
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setResult({ unavailable: true })
+      })
+    return () => controller.abort()
+  }, [revision])
+
+  const pass = result?.pass
+  const active = pass?.active === true
+  const waiting = pass?.orders?.some(order => ['awaiting_approval', 'review_overdue'].includes(order.status))
+  const label = !result ? 'Checking…' : result.unavailable ? 'Unavailable' : active ? 'Student Pass' : 'Free'
+
+  return <section className={cardClass} aria-labelledby="account-tier-title">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h2 id="account-tier-title" className="text-lg font-bold text-ink-heading">Account tier</h2>
+      <span role="status" className={`rounded-full px-3 py-1 text-sm font-semibold ${active ? 'bg-success-bg text-success' : 'bg-canvas-muted text-ink-heading'}`}>
+        {label}
+      </span>
+    </div>
+    {pass && <p className="mt-2 text-sm text-ink-muted">
+      {active ? 'Your active pass includes all paid tests.'
+        : waiting ? 'Your payment is awaiting approval. Free resources are available while you wait.'
+        : 'You have access to the Question Bank, PYQs, and free tests.'}
+    </p>}
+    {result?.unavailable && <Button size="sm" variant="secondary" className="mt-3" onClick={() => {
+      setResult(null)
+      setRevision(value => value + 1)
+    }}>Check again</Button>}
+    {pass?.enabled && <Link to="/student-pass" className="mt-3 inline-flex min-h-9 items-center gap-1.5 text-sm font-medium text-accent hover:underline">
+      View Student Pass <ArrowRight size={14} aria-hidden="true" />
+    </Link>}
+  </section>
+}
 
 function Feedback({ feedback }) {
   if (!feedback) return null
@@ -195,6 +239,7 @@ export default function Profile() {
 
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" key={user.id}>
         <div className="grid gap-5">
+          <AccountTier />
           <ProfileDetails fullName={fullName} username={username} />
           <SignInSettings user={user} />
         </div>
