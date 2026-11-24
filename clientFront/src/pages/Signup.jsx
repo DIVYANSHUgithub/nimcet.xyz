@@ -46,8 +46,8 @@ export default function Signup() {
     <SignedOutOnly authPending={isSigningUp}>
       <div className="flex min-h-svh flex-col">
         <Navbar />
-        <main className="flex flex-1 items-center py-8 md:py-12">
-          <div className="mx-auto grid w-full max-w-5xl grid-cols-1 overflow-hidden rounded-xl border border-line bg-surface shadow-sm px-0 sm:mx-5 sm:grid-cols-[1.1fr_0.9fr]">
+        <main className="flex flex-1 items-center px-4 py-6 sm:px-6 lg:py-10">
+          <div className="mx-auto grid w-full max-w-xl grid-cols-1 overflow-hidden rounded-xl border border-line bg-surface shadow-sm lg:max-w-5xl lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
             <SignupForm onSubmit={handleSignup} />
             <SignupBenefits />
           </div>

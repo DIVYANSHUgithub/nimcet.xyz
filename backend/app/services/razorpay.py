@@ -65,7 +65,10 @@ class Razorpay:
         return self.request("GET", f"payments/{payment_id}")
 
     def payments(self, order_id):
-        return self.request("GET", f"orders/{order_id}/payments").get("items", [])
+        items = self.request("GET", f"orders/{order_id}/payments").get("items")
+        if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+            raise GatewayUnavailable
+        return items
 
     def create_refund(self, payment, amount):
         identifier = str(payment["refund_operation_id"])

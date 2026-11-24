@@ -46,7 +46,7 @@ export default function DailyQuestions() {
     <section className="bg-canvas-muted py-14 sm:py-16">
       <Container>
         <SectionHeader  title="Questions of the Day" subtitle="Today's focus: Mathematics" meta={
-          <span className="inline-block rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white">
+          <span className="inline-block rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-brand dark:text-on-brand">
             {formatDisplayDate()}
           </span>
         } />

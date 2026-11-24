@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { backendGet, backendRequest } from '../../../clientFront/src/lib/backendApi'
 import MediaLibrary, { AssetPreview, AdminRichContent } from './MediaLibrary'
 import { inlineImageUrl, normalizeOption } from '../../../clientFront/src/utils/normalizeQuestion'
+import { useAdminList } from './adminRequests'
 
 const textBlock = () => ({ type: 'text', text: '' })
 const legacyImage = (url, alt = '') => ({ type: 'image', media_id: null, alt, legacyUrl: url })
@@ -68,7 +69,8 @@ function Blocks({ label, value, onChange, rememberImage, setUploading }) {
 export default function QuestionWorkspace({ roles }) {
   const [tab, setTab] = useState('questions')
   const [rows, setRows] = useState([])
-  const [catalog, setCatalog] = useState({})
+  const catalogRequest = useAdminList('admin/catalog')
+  const catalog = catalogRequest.data ?? {}
   const [draft, setDraft] = useState(blank)
   const [savedDraft, setSavedDraft] = useState(() => JSON.stringify(draft))
   const [id, setId] = useState(null)
@@ -101,9 +103,8 @@ export default function QuestionWorkspace({ roles }) {
   const canPublish = roles.some(r => ['administrator', 'super_administrator'].includes(r))
   useEffect(() => {
     const controller = new AbortController()
-    Promise.all([backendGet('admin/questions', { params: { page, search, ...filters }, signal: controller.signal }),
-      ...levels.map(level => backendGet(`admin/catalog/${level}`, { signal: controller.signal }))])
-      .then(([questions, ...values]) => { if (controller.signal.aborted) return; setLoadedKey(queryKey); setLoadError(''); setRows(questions); setCatalog(Object.fromEntries(levels.map((level, i) => [level, values[i]]))) })
+    backendGet('admin/questions', { params: { page, search, ...filters }, signal: controller.signal })
+      .then(questions => { if (controller.signal.aborted) return; setLoadedKey(queryKey); setLoadError(''); setRows(questions) })
       .catch(err => { if (!controller.signal.aborted) { setLoadedKey(queryKey); setLoadError(err.message) } })
     return () => controller.abort()
   }, [page, search, revision, queryKey, filters])
@@ -155,9 +156,10 @@ export default function QuestionWorkspace({ roles }) {
     <h2>Question bank and media</h2>
     <nav aria-label="Editorial tools"><button type="button" disabled={uploading} onClick={() => setTab('questions')}>Questions</button> <button type="button" disabled={uploading} onClick={() => setTab('catalog')}>Catalog</button></nav>
     {error && <p className="admin-error" role="alert">{error}</p>}{message && <p role="status">{message}</p>}
-    {loading ? <p role="status">Loading question and catalog records…</p> : loadError ? <div role="alert"><p className="admin-error">{loadError}</p><button type="button" onClick={() => setRevision(r => r + 1)}>Retry loading</button></div> : tab === 'catalog' ? <form className="admin-form" onSubmit={e => { e.preventDefault(); action(async () => {
+    {catalogRequest.error && <div role="alert"><p className="admin-error">{catalogRequest.error}</p><button type="button" onClick={catalogRequest.reload}>Retry catalog</button></div>}
+    {tab === 'catalog' ? catalogRequest.loading ? <p role="status">Loading catalog…</p> : catalogRequest.data && <form className="admin-form" onSubmit={e => { e.preventDefault(); action(async () => {
       await backendRequest(`admin/catalog/${kind}${catalogId ? `/${catalogId}` : ''}`, { method: catalogId ? 'PUT' : 'POST', body: entry })
-      setMessage('Catalog saved.'); setRevision(r => r + 1)
+      setMessage('Catalog saved.'); catalogRequest.reload()
     }) }}><fieldset disabled={busy} className="editor-fields">
       <label>Level<select value={kind} onChange={e => { setKind(e.target.value); setCatalogId(''); setEntry({ code: '', name: '', parent_id: null, status: 'active' }) }}>{levels.map(level => <option key={level}>{level}</option>)}</select></label>
       <label>Record<select value={catalogId} onChange={e => {
@@ -170,7 +172,7 @@ export default function QuestionWorkspace({ roles }) {
       <label>Name<input required value={entry.name} onChange={e => setEntry({ ...entry, name: e.target.value })} /></label>
       <label>Status<select value={entry.status} onChange={e => setEntry({ ...entry, status: e.target.value })}><option>active</option><option>inactive</option></select></label>
       <button disabled={busy}>Save catalog record</button>
-    </fieldset></form> : <>
+    </fieldset></form> : loading ? <p role="status">Loading questions…</p> : loadError ? <div role="alert"><p className="admin-error">{loadError}</p><button type="button" onClick={() => setRevision(r => r + 1)}>Retry questions</button></div> : <>
       <label>Find questions<input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></label>
       <div className="admin-filter-row"><label>Editorial state<select value={filters.state} onChange={e=>{setFilters({...filters,state:e.target.value});setPage(1)}}><option value="">All states</option>{['draft','review','published','archived'].map(state=><option key={state}>{state}</option>)}</select></label>{['exam','subject'].map(key=><label key={key}>{key}<input value={filters[key]} onChange={e=>{setFilters({...filters,[key]:e.target.value});setPage(1)}}/></label>)}</div>
       <ul>{rows.map(row => <li key={row.id}><button type="button" disabled={busy || uploading} onClick={() => edit(row.id)}>#{row.id} — {row.question.slice(0, 90)} ({row.editorial_state ?? row.status})</button></li>)}</ul>

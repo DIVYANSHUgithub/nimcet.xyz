@@ -38,10 +38,10 @@ export function TestCatalogIntro({ title, description, eyebrow, timing = 'Timed,
         </div>
       </div>
 
-      <div className="mt-8 grid gap-3 rounded-2xl bg-brand px-5 py-5 text-white sm:grid-cols-3 sm:px-7">
-        <div className="flex items-center gap-3"><Clock3 size={19} aria-hidden="true" /><span className="text-sm text-white/85">{timing}</span></div>
-        <div className="flex items-center gap-3"><FileQuestion size={19} aria-hidden="true" /><span className="text-sm text-white/85">Autosaved answer progress</span></div>
-        <div className="flex items-center gap-3"><Trophy size={19} aria-hidden="true" /><span className="text-sm text-white/85">Review your result when released</span></div>
+      <div className="mt-8 grid gap-3 rounded-2xl bg-brand px-5 py-5 text-on-brand sm:grid-cols-3 sm:px-7">
+        <div className="flex items-center gap-3"><Clock3 size={19} aria-hidden="true" /><span className="text-sm text-on-brand/85">{timing}</span></div>
+        <div className="flex items-center gap-3"><FileQuestion size={19} aria-hidden="true" /><span className="text-sm text-on-brand/85">Autosaved answer progress</span></div>
+        <div className="flex items-center gap-3"><Trophy size={19} aria-hidden="true" /><span className="text-sm text-on-brand/85">Review your result when released</span></div>
       </div>
     </>
   )

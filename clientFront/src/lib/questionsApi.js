@@ -232,3 +232,15 @@ export function submitPracticeAnswer(id, optionId, revision = 0) {
     method: 'POST', body: { option_id: optionId, expected_revision: revision },
   })
 }
+
+export function checkDailyChallengeAnswer(id, optionId, revision) {
+  return backendRequest(`questions/${encodeURIComponent(id)}/daily-challenge/check`, {
+    method: 'POST', body: { option_id: optionId, expected_revision: revision },
+  })
+}
+
+export function submitDailyChallengeAnswer(id, optionId, revision) {
+  return backendRequest(`questions/${encodeURIComponent(id)}/daily-challenge/submit`, {
+    method: 'POST', body: { option_id: optionId, expected_revision: revision },
+  })
+}

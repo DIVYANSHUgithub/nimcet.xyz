@@ -12,7 +12,7 @@ export default function PopularSearches({ items, onSelect, activeItem }) {
             className={cn(
               'inline-flex items-center rounded-full border px-3.5 py-1.5 text-[0.8125rem] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
               activeItem === term
-                ? 'border-brand bg-brand text-white'
+                ? 'border-brand bg-brand text-on-brand'
                 : 'border-line bg-canvas-subtle text-ink hover:border-line-strong hover:bg-canvas-muted'
             )}
             onClick={() => onSelect?.(term)}

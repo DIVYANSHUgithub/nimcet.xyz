@@ -66,7 +66,7 @@ export default function SearchBar({ onSearch, placeholder, searchableItems = [] 
           onKeyDown={handleKeyDown}
           autoComplete="off"
         />
-        <button type="submit" className="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-brand text-white transition-colors hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" aria-label="Search">
+        <button type="submit" className="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-brand text-on-brand transition-colors hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" aria-label="Search">
           <ArrowRight size={18} aria-hidden="true" />
         </button>
       </form>

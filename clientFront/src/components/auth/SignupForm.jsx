@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Lock, Mail, AtSign, UserRound } from 'lucide-react'
+import { Eye, EyeOff, LoaderCircle, Lock, Mail, AtSign, UserRound } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { authLinkTo } from '../../lib/navigation'
 import SocialSignup from './SocialSignup'
@@ -55,31 +55,33 @@ export default function SignupForm({ onSubmit }) {
   ]
 
   return (
-    <section className="px-5 py-7 md:px-10 md:py-10" aria-labelledby="signup-title">
+    <section className="min-w-0 p-5 sm:p-8 lg:px-10" aria-labelledby="signup-title">
       <h1 id="signup-title" className="text-[clamp(1.75rem,3vw,2.125rem)] font-bold leading-tight tracking-tight text-ink-heading">Create your account</h1>
-      <p className="mb-6 mt-2 text-sm leading-6 text-ink-muted">Join NIMCET.XYZ and take your preparation forward.</p>
-      <form onSubmit={handleSubmit} noValidate>
+      <p className="mb-5 mt-2 text-sm leading-6 text-ink-muted">Join NIMCET.XYZ and take your preparation forward.</p>
+      <form className="flex flex-col gap-3" onSubmit={handleSubmit} noValidate>
         {fields.map(({ name, label, placeholder, type, autoComplete, Icon }) => {
           const isPassword = type === 'password'
           const inputType = isPassword ? (show[name] ? 'text' : 'password') : type
           const errorId = `signup-${name}-error`
           return (
-            <div className="mb-4" key={name}>
-              <label htmlFor={`signup-${name}`} className="mb-1.5 block text-sm font-medium text-ink-heading">{label}</label>
+            <div key={name}>
+              <label htmlFor={`signup-${name}`} className="mb-1 block text-sm font-medium text-ink-heading">{label}</label>
               <div className={`flex min-h-11 items-center gap-3 rounded-md border bg-surface px-3 focus-within:ring-2 focus-within:ring-brand/15 ${errors[name] ? 'border-danger-fg' : 'border-line-strong'}`}>
                 <Icon size={17} className="shrink-0 text-ink-muted" aria-hidden="true" />
-                <input id={`signup-${name}`} name={name} value={values[name]} onChange={handleChange} type={inputType} placeholder={placeholder} autoComplete={autoComplete} className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-ink-heading outline-none placeholder:text-ink-muted" aria-invalid={Boolean(errors[name])} aria-describedby={errors[name] ? errorId : undefined} />
+                <input id={`signup-${name}`} name={name} value={values[name]} onChange={handleChange} type={inputType} placeholder={placeholder} autoComplete={autoComplete} className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-ink-heading outline-none placeholder:text-ink-muted" aria-invalid={Boolean(errors[name])} aria-describedby={errors[name] ? errorId : name === 'password' ? 'signup-password-hint' : undefined} />
                 {isPassword && <button type="button" className="grid size-8 place-items-center rounded-md text-ink-muted hover:bg-canvas-muted hover:text-ink-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" onClick={() => setShow((current) => ({ ...current, [name]: !current[name] }))} aria-label={show[name] ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`} aria-pressed={show[name]}>{show[name] ? <EyeOff size={17} /> : <Eye size={17} />}</button>}
               </div>
               {errors[name] && <p id={errorId} className="mt-1.5 text-xs text-danger" role="alert">{errors[name]}</p>}
-              {name === 'password' && !errors.password && <p className="mt-1.5 text-xs text-ink-muted">At least 6 characters.</p>}
+              {name === 'password' && !errors.password && <p id="signup-password-hint" className="mt-1.5 text-xs text-ink-muted">At least 6 characters.</p>}
             </div>
           )
         })}
-        <button type="submit" className="mt-1 min-h-12 w-full rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60" disabled={loading}>
+        <button type="submit" className="mt-1 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-on-brand transition hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-wait disabled:opacity-60" disabled={loading}>
+          {loading && <LoaderCircle size={16} className="motion-safe:animate-spin" aria-hidden="true" />}
           {loading ? 'Creating account…' : 'Create account'}
         </button>
-        {notice && <p className="mt-3 rounded-md border border-line bg-canvas-muted px-3 py-2.5 text-sm text-ink" role="status">{notice}</p>}
+        <span className="sr-only" role="status">{loading ? 'Creating account…' : ''}</span>
+        {notice && <p className="rounded-md border border-line bg-canvas-muted px-3 py-2.5 text-sm text-ink" role="status">{notice}</p>}
       </form>
       <SocialSignup />
       <p className="mt-5 text-center text-sm text-ink-muted">Already have an account? <Link className="font-semibold text-ink-heading underline underline-offset-4" to={authLinkTo('/login', location)}>Log in</Link></p>

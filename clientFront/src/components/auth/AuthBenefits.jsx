@@ -6,9 +6,9 @@ const authFeatures = [
   { icon: RotateCcw, text: 'Session restored across visits' },
 ]
 
-export default function AuthBenefits({ title, Illustration }) {
+export default function AuthBenefits({ title, Illustration, className = 'bg-canvas-muted p-6 lg:bg-surface lg:p-10' }) {
   return (
-    <aside className="bg-canvas-muted p-6 lg:bg-surface lg:p-10">
+    <aside className={className}>
       <Illustration />
       <h2 className="mb-2 text-center text-xl font-bold tracking-tight text-ink-heading lg:text-left">{title}</h2>
       <p className="mb-5 text-center text-sm leading-6 text-ink-muted lg:text-left">Email/password accounts are available. The Question Bank is public; quizzes, bookmarks, and progress tracking are not implemented yet.</p>

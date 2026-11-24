@@ -3,8 +3,11 @@ from uuid import UUID
 from urllib.request import Request,urlopen
 from urllib.error import URLError
 
+from app.services.supabase_headers import service_headers
+
 
 class DirectoryUnavailable(Exception): pass
+class DirectoryNotConfigured(DirectoryUnavailable): pass
 class DirectoryUserMissing(Exception): pass
 
 
@@ -13,11 +16,12 @@ class AuthDirectory:
     def __init__(self,settings): self.settings=settings
 
     def request(self,path):
-        if not self.settings.supabase_admin_key or not self.settings.supabase_url: raise DirectoryUnavailable
+        if not self.settings.supabase_admin_key or not self.settings.supabase_url:
+            raise DirectoryNotConfigured
         key=self.settings.supabase_admin_key.get_secret_value()
         try:
             request=Request(self.settings.supabase_url.rstrip('/')+'/auth/v1/admin/users'+path,
-                            headers={'Authorization':f'Bearer {key}','apikey':key})
+                            headers=service_headers(key))
             with urlopen(request,timeout=10) as response:
                 return json.loads(response.read(4*1024*1024))
         except URLError as error:

@@ -39,12 +39,20 @@ class ContentRepository:
         self.workflows_enabled = workflows_enabled
 
     def catalog(self, kind):
-        table, parent = CATALOG[kind]
         with self.database.read_only_transaction() as c:
-            return [dict(r) for r in c.execute(text(
-                f"SELECT id,code,name,status,{parent if parent else 'NULL::uuid'} AS parent_id "
-                f"FROM public.{table} ORDER BY name,id"
-            )).mappings().all()]
+            return self._catalog_rows(c, kind)
+
+    def catalog_index(self):
+        with self.database.read_only_transaction() as c:
+            return {kind: self._catalog_rows(c, kind) for kind in CATALOG}
+
+    @staticmethod
+    def _catalog_rows(connection, kind):
+        table, parent = CATALOG[kind]
+        return [dict(row) for row in connection.execute(text(
+            f"SELECT id,code,name,status,{parent if parent else 'NULL::uuid'} AS parent_id "
+            f"FROM public.{table} ORDER BY name,id"
+        )).mappings()]
 
     def save_catalog(self, kind, payload, actor, request_id, item_id=None):
         table, parent = CATALOG[kind]

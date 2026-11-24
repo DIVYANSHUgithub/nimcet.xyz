@@ -10,7 +10,7 @@ const offerTime = value => value
   ? new Date(new Date(value).getTime() + 330 * 60000).toISOString().slice(0, 16) : ''
 
 export default function PaymentsWorkspace() {
-  const [filter, setFilter] = useState('approval')
+  const [filter, setFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -31,17 +31,20 @@ export default function PaymentsWorkspace() {
     {error && <p className="admin-error" role="alert">{error}</p>}
     {loadError && <p className="admin-error" role="alert">{loadError}</p>}
     {message && <p role="status">{message}</p>}
+    {data?.gateway_actions_available === false && <p className="admin-notice">
+      You can view captured orders. Set the backend Razorpay credentials to reconcile or approve refunds.
+    </p>}
     {data?.offer && <OfferForm key={JSON.stringify(data.offer)} offer={data.offer} busy={busy} act={act} />}
     <div className="admin-role-actions">
       <label>Queue<select value={filter} onChange={event => { setFilter(event.target.value); setPage(1) }}>
-        <option value="approval">Awaiting approval</option><option value="refund">Refund review and pending</option>
-        <option value="checkout">Unconfirmed checkout</option><option value="all">All orders and payments</option>
+        <option value="all">All orders and payments</option><option value="refund">Refund review and pending</option>
+        <option value="checkout">Unconfirmed checkout</option>
       </select></label>
       <button className="admin-secondary" onClick={reload} disabled={busy}>Refresh</button>
     </div>
     {loading && <p role="status">Loading orders…</p>}
     {data && data.items.length === 0 && <p>No orders in this queue.</p>}
-    {data?.items.map(row => <PaymentRow key={row.gateway_payment_id || row.id} row={row} act={act} busy={busy} />)}
+    {data?.items.map(row => <PaymentRow key={row.gateway_payment_id || row.id} row={row} act={act} busy={busy} gatewayAvailable={data.gateway_actions_available !== false} />)}
     <div className="admin-role-actions">
       <button className="admin-secondary" disabled={page <= 1 || busy} onClick={() => setPage(value => value - 1)}>Previous</button>
       <button className="admin-secondary" disabled={!data?.has_more || busy} onClick={() => setPage(value => value + 1)}>Next</button>
@@ -49,23 +52,20 @@ export default function PaymentsWorkspace() {
   </section>
 }
 
-function PaymentRow({ row, act, busy }) {
+function PaymentRow({ row, act, busy, gatewayAvailable }) {
   const [reason, setReason] = useState('')
   const [showRefund, setShowRefund] = useState(false)
-  const canApprove = ['awaiting_approval', 'review_overdue'].includes(row.status)
   const canRefund = row.gateway_payment_id && !['processed', 'pending'].includes(row.refund_status)
   return <article className="admin-form">
     <strong>{passOrderLabels[row.status]} · {money(row.amount)}</strong>
     <div>Order {row.id} · Student {row.user_id}</div>
     {row.gateway_order_id && <div>Razorpay order {row.gateway_order_id}</div>}
     {row.gateway_payment_id && <div>Payment {row.gateway_payment_id} · Confirmed {time(row.confirmed_at)}</div>}
-    {canApprove && <div>Review due {time(row.review_due_at)}</div>}
     {row.gateway_refund_id && <div>Refund {row.gateway_refund_id}</div>}
     {row.refund_reason && <div>Refund reason: {row.refund_reason}</div>}
     <div className="admin-role-actions">
-      {canApprove && <button disabled={busy} onClick={() => act(`orders/${row.id}/approve`, 'POST', null, 'Pass approved.')}>Approve pass</button>}
-      {row.gateway_order_id && <button className="admin-secondary" disabled={busy} onClick={() => act(`orders/${row.id}/reconcile`, 'POST', null, 'Gateway status checked.')}>Check Razorpay</button>}
-      {canRefund && <button className="admin-secondary" disabled={busy} onClick={() => setShowRefund(value => !value)}>
+      {row.gateway_order_id && <button className="admin-secondary" disabled={busy || !gatewayAvailable} onClick={() => act(`orders/${row.id}/reconcile`, 'POST', null, 'Gateway status checked.')}>Check Razorpay</button>}
+      {canRefund && <button className="admin-secondary" disabled={busy || !gatewayAvailable} onClick={() => setShowRefund(value => !value)}>
         {row.refund_status === 'requested' || row.refund_status === 'failed' ? 'Retry refund' : 'Review refund'}
       </button>}
     </div>
@@ -75,7 +75,8 @@ function PaymentRow({ row, act, busy }) {
       setShowRefund(false)
     }}>
       <label>Reason for full refund<input required minLength={4} maxLength={500} value={reason} onChange={event => setReason(event.target.value)} /></label>
-      <button disabled={busy || reason.trim().length < 4}>{`Submit ${money(row.amount)} refund`}</button>
+      <button disabled={busy || !gatewayAvailable || reason.trim().length < 4}>{row.refund_status === 'requested'
+        ? `Retry ${money(row.amount)} refund` : `Approve ${money(row.amount)} refund`}</button>
     </form>}
   </article>
 }

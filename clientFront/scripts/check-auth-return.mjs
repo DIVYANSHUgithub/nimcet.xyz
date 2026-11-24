@@ -13,7 +13,9 @@ for (const key of ['window', 'document', 'navigator', 'HTMLElement', 'Event', 'M
 window.scrollTo = () => {}
 const { createRoot } = await import('react-dom/client')
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
+let pendingAuthRequest
 const signInWithPassword = async () => {
+  await pendingAuthRequest?.promise
   globalThis.__fixtureSignedIn?.()
   return { error: null }
 }
@@ -26,6 +28,8 @@ globalThis.__authReturnFixture = {
     },
   },
 }
+const testsPageModule = Promise.withResolvers()
+globalThis.__authReturnFixture.testsPageReady = testsPageModule.promise
 const server = await createServer({ configFile: false, envDir: false,
   cacheDir: 'node_modules/.vite-auth-return-check', resolve: { dedupe: ['react', 'react-dom'] },
   plugins: [{ name: 'synthetic-password-auth', enforce: 'pre',
@@ -63,6 +67,11 @@ const server = await createServer({ configFile: false, envDir: false,
         export const backendRequest = () => { throw new Error('Unexpected anonymous PYQ start') }
       `
     },
+    transform(code, id) {
+      if (id.endsWith('/src/pages/TestCatalog.jsx')) {
+        return `await globalThis.__authReturnFixture.testsPageReady;\n${code}`
+      }
+    },
   }, react()], server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' })
 let root
 function Probe() {
@@ -85,6 +94,21 @@ async function submitAuthForm(fields) {
   await click(document.querySelector('form button[type="submit"]'))
 }
 const submitLogin = () => submitAuthForm([['login-email', 'fixture@example.test'], ['login-password', 'synthetic']])
+async function checkPendingSubmit(submit, message) {
+  pendingAuthRequest = Promise.withResolvers()
+  try {
+    await submit()
+    const button = document.querySelector('form button[type="submit"]')
+    assert.equal(button?.disabled, true)
+    assert.equal(button.textContent.trim(), message)
+    assert.ok(button.querySelector('svg[aria-hidden="true"]'))
+    assert.ok(Array.from(document.querySelectorAll('form [role="status"]')).some(status => status.textContent === message))
+  } finally {
+    const request = pendingAuthRequest
+    pendingAuthRequest = undefined
+    await act(async () => request.resolve())
+  }
+}
 try {
   const { AuthContext } = await server.ssrLoadModule('/src/context/auth-context.js')
   function FixtureSession({ initial, children }) {
@@ -134,15 +158,15 @@ try {
   }
   await mount('/attempts/example#instructions')
   assert.equal(document.getElementById('path').textContent, '/login')
-  await submitLogin()
+  await checkPendingSubmit(submitLogin, 'Logging in…')
   assert.equal(document.getElementById('path').textContent, '/attempts/example#instructions')
   await mount('/signup?next=%2Ftests%23instructions')
-  await submitAuthForm([
+  await checkPendingSubmit(() => submitAuthForm([
     ['signup-fullName', 'Fixture Student'],
     ['signup-email', 'fixture@example.test'],
     ['signup-password', 'synthetic'],
     ['signup-confirmPassword', 'synthetic'],
-  ])
+  ]), 'Creating account…')
   assert.equal(document.getElementById('path').textContent, '/tests#instructions', 'Signup with an immediate session must keep its return path')
   for (const destination of ['/', '/questions?subject=Mathematics#filters', '/questions/7?answer=show#solution', '/tests#instructions']) {
     rememberOAuthReturn(destination)
@@ -163,6 +187,18 @@ try {
     }
     assert.fail(`Expected ${selector} in the application`)
   }
+  await act(async () => root.unmount())
+  window.history.replaceState({}, '', '/about')
+  root = createRoot(document.getElementById('root'))
+  await act(async () => root.render(React.createElement(App)))
+  await click(await waitFor('header nav a[href="/tests"]'))
+  assert.equal(window.location.pathname, '/tests')
+  assert.equal(document.querySelector('[role="status"]')?.textContent, 'Loading page…',
+    'A slow route must show loading feedback before its module is ready')
+  await act(async () => testsPageModule.resolve())
+  await waitFor('header nav a[href="/tests"][aria-current="page"]')
+  assert.ok(!Array.from(document.querySelectorAll('[role="status"]')).some(status => status.textContent === 'Loading page…'))
+
   for (const [path, prompt] of [
     ['/tests?source=review#instructions', 'Public practice fixture'],
     ['/pyq?view=tests#instructions', 'Public PYQ fixture'],
@@ -188,8 +224,9 @@ try {
     await waitFor('#login-email')
     assert.equal(window.location.pathname, '/login', `${path} must still require authentication`)
   }
-  console.log('Auth checks passed: signed-in visitors redirect home, signed-out forms and prompts work, attempts stay protected, and sign-in return paths work.')
+  console.log('Auth checks passed: route and submit loading states, signed-out prompts, protected attempts, and sign-in return paths.')
 } finally {
+  testsPageModule.resolve()
   if (root) await act(async () => root.unmount())
   await server.close()
   dom.window.close()

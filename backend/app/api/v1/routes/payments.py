@@ -11,8 +11,8 @@ from starlette.concurrency import run_in_threadpool
 from app.api.dependencies import (enforce_student_device, get_authenticated_principal,
                                   get_current_principal, get_optional_principal, require_roles)
 from app.db.database import DatabaseUnavailable
-from app.db.payments import PaymentError
-from app.services.pass_payments import full_refund, reconcile_order
+from app.db.payments import CheckoutRepriceRequired, PaymentError
+from app.services.pass_payments import full_refund, reconcile_order, sync_order_payments
 from app.services.razorpay import GatewayUnavailable, gateway_id, signed
 
 router = APIRouter()
@@ -31,6 +31,24 @@ def configured(request: Request):
     if not settings.payments_configured:
         fail(503, "payments_unavailable", "Student Pass payments are temporarily unavailable.")
     return request.app.state.payment_repository, request.app.state.razorpay
+
+
+def admin_repository(request: Request):
+    settings = request.app.state.settings
+    if not settings.payments_enabled:
+        fail(404, "payments_disabled", "Student Pass is disabled. Set PAYMENTS_ENABLED=true on the backend.")
+    if not settings.payment_admin_configured:
+        fail(503, "payment_admin_not_configured",
+             "Student Pass administration requires TEST_ENGINE_ENABLED, TRUSTED_ROLE_LOOKUP_ENABLED and ADMIN_WORKFLOWS_ENABLED.")
+    return request.app.state.payment_repository
+
+
+def admin_gateway(request: Request):
+    repository = admin_repository(request)
+    if not request.app.state.settings.payments_configured:
+        fail(503, "payment_gateway_not_configured",
+             "Razorpay actions require RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET and a separate RAZORPAY_WEBHOOK_SECRET.")
+    return repository, request.app.state.razorpay
 
 
 def execute(operation):
@@ -104,7 +122,19 @@ def create_order(payload: Checkout, request: Request, principal=student):
         fail(503, "checkout_paused", "Student Pass checkout is temporarily paused.")
 
     def operation():
-        order = repository.reserve_order(principal.user_id, payload.amount)
+        try:
+            order = repository.reserve_order(principal.user_id, payload.amount)
+        except CheckoutRepriceRequired as change:
+            previous = change.order
+            if sync_order_payments(repository, gateway, previous):
+                raise PaymentError("payment_in_progress", "Your previous payment is still being confirmed. Check its status before trying again.") from None
+            try:
+                order = repository.reserve_order(
+                    principal.user_id, payload.amount,
+                    checked_previous=(previous["id"], previous["gateway_order_id"]),
+                )
+            except CheckoutRepriceRequired:
+                raise PaymentError("checkout_changed", "Your checkout changed. Reload to see the latest order.") from None
         provider_id = order["gateway_order_id"]
         if not provider_id:
             provider_id = repository.attach_gateway_order(order, gateway.create_order(order))
@@ -194,27 +224,24 @@ async def webhook(
 
 @router.get("/admin/payments")
 def queue(request: Request, response: Response, page: int = Query(1, ge=1, le=10000),
-          queue: Literal["approval", "refund", "checkout", "all"] = "approval", principal=admin):
+          queue: Literal["refund", "checkout", "all"] = "all", principal=admin):
     response.headers["Cache-Control"] = "private, no-store"
-    repository, _ = configured(request)
-    return execute(lambda: repository.admin_queue(page, queue))
-
-
-@router.post("/admin/payments/orders/{order_id}/approve")
-def approve(order_id: UUID, request: Request, principal=admin):
-    repository, _ = configured(request)
-    return execute(lambda: repository.approve(order_id, principal.user_id, request.state.request_id))
+    repository = admin_repository(request)
+    return {
+        **execute(lambda: repository.admin_queue(page, queue)),
+        "gateway_actions_available": request.app.state.settings.payments_configured,
+    }
 
 
 @router.post("/admin/payments/orders/{order_id}/reconcile")
 def admin_reconcile(order_id: UUID, request: Request, principal=admin):
-    repository, gateway = configured(request)
+    repository, gateway = admin_gateway(request)
     return execute(lambda: (reconcile_order(repository, gateway, repository.order(order_id)) or {"reconciled": True}))
 
 
 @router.post("/admin/payments/{payment_id}/refund")
 def refund_payment(payment_id: str, payload: Refund, request: Request, principal=admin):
-    repository, gateway = configured(request)
+    repository, gateway = admin_gateway(request)
     if not gateway_id(payment_id, "pay") or len(payload.reason.strip()) < 4:
         fail(422, "invalid_refund_request", "Select a captured payment and enter a reason.")
 
@@ -242,7 +269,7 @@ def refund_payment(payment_id: str, payload: Refund, request: Request, principal
 
 @router.put("/admin/payments/offer")
 def update_offer(payload: Offer, request: Request, principal=admin):
-    repository, _ = configured(request)
+    repository = admin_repository(request)
     if not payload.label.strip():
         fail(422, "invalid_offer", "Enter an offer name.")
     return execute(lambda: repository.set_offer(
@@ -253,13 +280,13 @@ def update_offer(payload: Offer, request: Request, principal=admin):
 
 @router.delete("/admin/payments/offer")
 def clear_offer(request: Request, principal=admin):
-    repository, _ = configured(request)
+    repository = admin_repository(request)
     return execute(lambda: repository.set_offer(principal.user_id, request.state.request_id))
 
 
 @router.patch("/admin/payments/tests/{test_id}")
 def set_test_access(test_id: UUID, payload: TestAccess, request: Request, principal=admin):
-    repository, _ = configured(request)
+    repository = admin_repository(request)
     return execute(lambda: repository.set_test_access(
         test_id, payload.pass_required, principal.user_id, request.state.request_id
     ))

@@ -1,5 +1,5 @@
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import json
 from uuid import UUID, uuid4
 
@@ -9,12 +9,16 @@ from app.db.database import Database, DatabaseUnavailable
 from app.services.razorpay import gateway_id
 
 SEASON = "nimcet-2027"
-REVIEW_HOURS = 24
 
 
 class PaymentError(Exception):
     def __init__(self, code: str, message: str, status: int = 409):
         self.code, self.message, self.status = code, message, status
+
+
+class CheckoutRepriceRequired(Exception):
+    def __init__(self, order):
+        self.order = order
 
 
 def run(connection, sql, **params):
@@ -36,8 +40,9 @@ def has_active_pass(connection, user_id):
           SELECT 1 FROM public.pass_orders o
           JOIN public.pass_seasons s ON s.id=o.season_id
           JOIN public.pass_payments p ON p.order_id=o.id AND p.is_primary
-          WHERE o.user_id=:user AND o.approved_at IS NOT NULL AND o.closed_at IS NULL
-            AND p.refund_status IS NULL AND s.ends_at > clock_timestamp()
+          WHERE o.user_id=:user AND o.closed_at IS NULL AND p.refund_status IS NULL
+            AND NOT p.received_after_cutoff AND p.confirmed_at < s.ends_at
+            AND s.ends_at > clock_timestamp()
         )""", user=user_id).scalar_one())
 
 
@@ -49,27 +54,22 @@ def _state(row, now):
             "processed": "refunded", "failed": "refund_failed",
         }[refund]
     if not row.get("confirmed_at"):
+        if row.get("closed_at"):
+            return "checkout_replaced"
         return "awaiting_payment" if now < row["checkout_closes_at"] else "checkout_closed"
     if row.get("is_primary") is False:
         return "duplicate_payment"
-    if row.get("approved_at"):
-        return "active" if now < row["ends_at"] else "expired"
-    if now >= row["ends_at"] or row.get("received_after_cutoff"):
+    if row.get("closed_at") or row.get("received_after_cutoff") or row["confirmed_at"] >= row["ends_at"]:
         return "refund_review"
-    if now >= row["confirmed_at"] + timedelta(hours=REVIEW_HOURS):
-        return "review_overdue"
-    return "awaiting_approval"
+    return "active" if now < row["ends_at"] else "expired"
 
 
 def _view(row, now, *, admin=False):
-    keys = ("id", "amount", "standard_amount", "offer_label", "created_at", "approved_at",
-            "confirmed_at", "ends_at")
+    keys = ("id", "amount", "standard_amount", "offer_label", "created_at", "confirmed_at", "ends_at")
     if admin:
         keys += ("user_id", "gateway_order_id", "gateway_payment_id", "gateway_refund_id",
                  "refund_reason", "refund_status", "is_primary")
-    confirmed = row.get("confirmed_at")
-    return {**{key: row.get(key) for key in keys}, "status": _state(row, now), "currency": "INR",
-            "review_due_at": confirmed + timedelta(hours=REVIEW_HOURS) if confirmed else None}
+    return {**{key: row.get(key) for key in keys}, "status": _state(row, now), "currency": "INR"}
 
 
 class PaymentRepository:
@@ -123,10 +123,10 @@ class PaymentRepository:
                 "amount": amount, "standard_amount": season["standard_amount"], "offer_label": label,
                 "ends_at": season["ends_at"], "checkout_closes_at": season["checkout_closes_at"],
                 "checkout_open": now < season["checkout_closes_at"],
-                "review_hours": REVIEW_HOURS, "active": active, "orders": orders,
+                "active": active, "orders": orders,
             }
 
-    def reserve_order(self, user_id, expected_amount):
+    def reserve_order(self, user_id, expected_amount, *, checked_previous=None):
         user = UUID(user_id)
         with self.database.transaction() as connection:
             run(connection, "SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))",
@@ -135,19 +135,26 @@ class PaymentRepository:
             if season["server_time"] >= season["checkout_closes_at"]:
                 raise PaymentError("checkout_closed", "Student Pass sales have closed for this season.")
             existing = run(connection, """
-                SELECT o.*,p.gateway_payment_id FROM public.pass_orders o
-                LEFT JOIN public.pass_payments p ON p.order_id=o.id AND p.is_primary
-                WHERE o.user_id=:user AND o.season_id=:season AND o.closed_at IS NULL
+                SELECT * FROM public.pass_orders
+                WHERE user_id=:user AND season_id=:season AND closed_at IS NULL FOR UPDATE
             """, user=user, season=SEASON).mappings().one_or_none()
-            if existing and existing["gateway_payment_id"]:
+            # Capture uses the same row lock. Check payments after obtaining it.
+            if existing and run(connection, """
+                SELECT EXISTS (SELECT 1 FROM public.pass_payments WHERE order_id=:id AND is_primary)
+            """, id=existing["id"]).scalar_one():
                 raise PaymentError("already_purchased", "A payment for this season is already on file.")
             amount, offer = self._offer(season)
-            if existing:
-                amount = existing["amount"]
             if amount != expected_amount:
                 raise PaymentError("price_changed", "The checkout price changed. Check the updated price and try again.")
             if existing:
-                return dict(existing)
+                if amount == existing["amount"]:
+                    return dict(existing)
+                previous = existing["id"], existing["gateway_order_id"]
+                if previous[1] and previous != checked_previous:
+                    raise CheckoutRepriceRequired(dict(existing))
+                run(connection, """
+                    UPDATE public.pass_orders SET closed_at=clock_timestamp() WHERE id=:id
+                """, id=existing["id"])
             return dict(run(connection, """
                 INSERT INTO public.pass_orders (id,season_id,user_id,amount,standard_amount,offer_label)
                 VALUES (:id,:season,:user,:amount,:standard,:offer) RETURNING *
@@ -162,11 +169,15 @@ class PaymentRepository:
             result = run(connection, """
                 UPDATE public.pass_orders SET gateway_order_id=:gateway WHERE id=:id
                   AND (gateway_order_id IS NULL OR gateway_order_id=:gateway)
-                RETURNING gateway_order_id
-            """, gateway=gateway["id"], id=order["id"]).scalar_one_or_none()
+                RETURNING gateway_order_id,closed_at
+            """, gateway=gateway["id"], id=order["id"]).mappings().one_or_none()
             if result is None:
                 raise PaymentError("gateway_order_conflict", "Checkout needs support review.", 502)
-            return result
+        # Keep the old provider ID for reconciliation even if the price changed
+        # while this gateway request was in flight.
+        if result["closed_at"]:
+            raise PaymentError("price_changed", "This checkout was replaced. Reload to see the updated price.")
+        return result["gateway_order_id"]
 
     def order(self, order_id, user_id=None):
         with self.database.read_only_transaction() as connection:
@@ -294,30 +305,6 @@ class PaymentRepository:
                 raise PaymentError("missing_capture", "The payment needs reconciliation first.", 503)
             self._apply_refund(connection, order, refund)
 
-    def approve(self, order_id, actor, request_id):
-        with self.database.transaction() as connection:
-            row = run(connection, """
-                SELECT o.*,s.ends_at
-                FROM public.pass_orders o JOIN public.pass_seasons s ON s.id=o.season_id
-                WHERE o.id=:id FOR UPDATE OF o
-            """, id=order_id).mappings().one_or_none()
-            # Read the payment after acquiring the order lock shared by capture/refund.
-            if row is None:
-                raise PaymentError("order_not_found", "Order was not found.", 404)
-            payment = run(connection, """
-                SELECT refund_status,received_after_cutoff FROM public.pass_payments WHERE order_id=:id AND is_primary
-            """, id=order_id).mappings().one_or_none()
-            now = run(connection, "SELECT clock_timestamp()").scalar_one()
-            if (payment is None or payment["refund_status"] or payment["received_after_cutoff"] or row["closed_at"]
-                    or now >= row["ends_at"]):
-                raise PaymentError("not_approvable", "The order needs a captured payment, an open season, and no refund.")
-            if row["approved_at"] is None:
-                run(connection, """
-                    UPDATE public.pass_orders SET approved_at=:now,approved_by=:actor WHERE id=:id
-                """, now=now, actor=UUID(actor), id=order_id)
-                _audit(connection, actor, "pass.approved", order_id, request_id)
-            return {"status": "active"}
-
     def request_refund(self, payment_id, actor, request_id, reason):
         with self.database.transaction() as connection:
             order = run(connection, """
@@ -345,12 +332,10 @@ class PaymentRepository:
     def admin_queue(self, page, queue):
         filters = {
             "all": "true",
-            "approval": "p.is_primary AND NOT p.received_after_cutoff AND p.refund_status IS NULL "
-                        "AND o.approved_at IS NULL AND s.ends_at>clock_timestamp()",
             "refund": "(p.refund_status IN ('requested','pending','failed') OR (p.refund_status IS NULL "
-                      "AND (NOT p.is_primary OR p.received_after_cutoff "
-                      "OR (o.approved_at IS NULL AND s.ends_at<=clock_timestamp()))))",
-            "checkout": "p.gateway_payment_id IS NULL",
+                      "AND (NOT p.is_primary OR p.received_after_cutoff OR p.confirmed_at>=s.ends_at "
+                      "OR (p.gateway_payment_id IS NOT NULL AND o.closed_at IS NOT NULL))))",
+            "checkout": "p.gateway_payment_id IS NULL AND o.closed_at IS NULL",
         }
         with self.database.read_only_transaction() as connection:
             season = self._season(connection)
@@ -360,10 +345,8 @@ class PaymentRepository:
                 FROM public.pass_orders o JOIN public.pass_seasons s ON s.id=o.season_id
                 LEFT JOIN public.pass_payments p ON p.order_id=o.id
                 WHERE """ + filters[queue] + """
-                ORDER BY
-                    CASE WHEN :oldest THEN p.confirmed_at END ASC,
-                    COALESCE(p.confirmed_at,o.created_at) DESC,o.id,p.gateway_payment_id LIMIT 31 OFFSET :offset
-            """, oldest=queue == "approval", offset=(page - 1) * 30).mappings().all()
+                ORDER BY COALESCE(p.confirmed_at,o.created_at) DESC,o.id,p.gateway_payment_id LIMIT 31 OFFSET :offset
+            """, offset=(page - 1) * 30).mappings().all()
             return {"items": [_view(row, season["server_time"], admin=True) for row in rows[:30]],
                     "has_more": len(rows) > 30,
                     "offer": {key: season[key] for key in ("standard_amount", "offer_amount", "offer_label",

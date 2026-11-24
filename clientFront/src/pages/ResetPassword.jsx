@@ -64,7 +64,7 @@ export default function ResetPassword() {
             <form className="space-y-4" onSubmit={submit}>
               <label className="block text-sm font-medium text-ink-heading">New password<input type="password" autoComplete="new-password" required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 min-h-11 w-full rounded-md border border-line-strong bg-surface px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand/20" /></label>
               <label className="block text-sm font-medium text-ink-heading">Confirm new password<input type="password" autoComplete="new-password" required minLength={6} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} className="mt-1.5 min-h-11 w-full rounded-md border border-line-strong bg-surface px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand/20" /></label>
-              <button disabled={busy} className="min-h-11 w-full rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Updating…' : 'Update password'}</button>
+              <button disabled={busy} className="min-h-11 w-full rounded-md bg-brand px-4 text-sm font-semibold text-on-brand hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Updating…' : 'Update password'}</button>
             </form>
           )}
           {message && <p className={`mt-4 rounded-md border p-3 text-sm ${isError ? 'border-danger-border bg-danger-bg text-danger' : 'border-success-border bg-success-bg text-success'}`} role={isError ? 'alert' : 'status'}>{message}</p>}

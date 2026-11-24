@@ -91,7 +91,7 @@ def client(role='student', enabled=True):
                      database=Database(),token_verifier=Verifier(),role_resolver=Resolver(role)))
 
 
-@pytest.mark.parametrize('path', ['/admin/questions','/admin/catalog/subjects'])
+@pytest.mark.parametrize('path', ['/admin/questions','/admin/catalog','/admin/catalog/subjects'])
 def test_students_cannot_access_editorial_endpoints(path):
     with client() as c:
         assert c.get('/api/v1'+path,headers={'Authorization':'Bearer fixture'}).status_code==403
@@ -195,6 +195,30 @@ def test_http_practice_validates_then_reveals_feedback(monkeypatch):
         assert valid.json()['is_correct'] is False
         assert valid.json()['correct_option']==2
         assert valid.json()['explanation']==row['explanation']
+
+
+def test_daily_challenge_guest_check_and_authenticated_submission(monkeypatch):
+    import app.api.v1.routes.content as route
+
+    class Repo:
+        def get(self, question_id, public=False):
+            assert question_id == 7 and public
+            return {'options': ['A', 'B', 'C', 'D'], 'correct_option': 2,
+                    'explanation': 'Public explanation.', 'revision': 3}
+
+    monkeypatch.setattr(route, 'repository', lambda request: Repo())
+    path = '/api/v1/questions/7/daily-challenge'
+    correct = {'option_id': 'option-2', 'expected_revision': 3}
+    with client() as c:
+        assert c.post(f'{path}/submit', json=correct).status_code == 401
+        for choice, expected in [(correct, True), ({**correct, 'option_id': 'option-0'}, False)]:
+            response = c.post(f'{path}/check', json=choice)
+            assert response.status_code == 200
+            assert response.json() == {'is_correct': expected}
+        assert c.post(f'{path}/check', json={**correct, 'expected_revision': 2}).status_code == 409
+        response = c.post(f'{path}/submit', json=correct, headers={'Authorization': 'Bearer fixture'})
+        assert response.status_code == 200
+        assert response.json() == {'is_correct': True}
 
 
 @pytest.mark.parametrize('role',['editor','test_manager','administrator','super_administrator'])

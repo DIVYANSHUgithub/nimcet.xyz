@@ -2,11 +2,13 @@ import { cn } from '../../lib/cn'
 
 const variants = {
   primary:
-    'border-brand bg-brand text-white hover:bg-brand-hover hover:border-brand-hover',
+    'border-brand bg-brand text-on-brand hover:bg-brand-hover hover:border-brand-hover focus-visible:outline-brand',
   secondary:
-    'border-line-strong bg-surface text-ink-heading hover:bg-canvas-muted',
+    'border-line-strong bg-surface text-ink-heading hover:bg-canvas-muted focus-visible:outline-brand',
   ghost:
-    'border-line-strong bg-transparent text-ink-heading hover:bg-canvas-muted',
+    'border-line-strong bg-transparent text-ink-heading hover:bg-canvas-muted focus-visible:outline-brand',
+  inverse:
+    'border-white bg-white text-black hover:border-neutral-200 hover:bg-neutral-200 focus-visible:outline-white',
 }
 
 const sizes = {
@@ -28,7 +30,7 @@ export default function Button({
     <Comp
       type={Comp === 'button' ? type || 'button' : type}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-md border font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-70',
+        'inline-flex items-center justify-center gap-2 rounded-md border font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-70',
         variants[variant],
         sizes[size],
         full && 'w-full',

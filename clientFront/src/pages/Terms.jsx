@@ -39,8 +39,8 @@ export default function Terms() {
       <p>The pass belongs to the purchasing account. One mobile and one desktop session can access account features at a time. The season expiry stays fixed if an account is suspended. After expiry, you can finish an existing timed attempt and review historical results when released.</p>
     </Section>
     <Section id="refunds" title="Payments, refunds and cancellation">
-      <p>Razorpay processes payments. After Razorpay confirms payment, allow up to 24 hours for admin review. Check the <Link to="/student-pass">Student Pass page</Link> for your order status.</p>
-      <p>If your payment succeeded and you did not receive your pass, or you were charged twice, email <Email subject="Payment or access issue" /> with your order reference, date and amount. Support can arrange a refund when access cannot be delivered. Other refunds are reviewed as exceptions. Starting a refund blocks activation or ends access from the refunded purchase.</p>
+      <p>Razorpay processes payments. Your Student Pass activates automatically after we verify the captured payment. Check the <Link to="/student-pass">Student Pass page</Link> for your order status.</p>
+      <p>If your payment succeeded and you did not receive your pass, or you were charged twice, email <Email subject="Payment or access issue" /> with your order reference, date and amount. An admin must approve a refund before it is sent to Razorpay. Support can arrange a refund when access cannot be delivered. Other refunds are reviewed as exceptions. Starting a refund blocks activation or ends access from the refunded purchase.</p>
       <p>Remedies required by applicable consumer law remain available. Never send passwords, payment authentication codes, full card details or UPI PINs to support.</p>
     </Section>
     <Section id="content" title="Content and intellectual property">

@@ -8,12 +8,13 @@ from urllib.request import Request as URLRequest, urlopen
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from starlette.concurrency import run_in_threadpool
 
-from app.api.dependencies import require_roles
+from app.api.dependencies import get_current_principal, require_roles
 from app.core.security import Principal
 from app.db.content import CATALOG, ContentConflict, ContentNotFound, ContentRepository, audit
 from app.db.database import DatabaseUnavailable
 from app.domain.question_content import option_ids
 from app.schemas.content import CatalogWrite, PracticeAnswer, QuestionWrite
+from app.services.supabase_headers import service_headers
 from sqlalchemy import text
 from PIL import Image, UnidentifiedImageError
 
@@ -43,6 +44,11 @@ def translate(operation):
         if sqlstate == '23503':
             raise HTTPException(422, detail={'code':'invalid_reference','message':'The selected catalog reference is unavailable.'}) from None
         raise HTTPException(503, detail={'code':'content_storage_unavailable','message':'Content storage is temporarily unavailable.'}) from None
+
+
+@router.get('/admin/catalog')
+def admin_catalog(request: Request, principal: Principal = Depends(require_roles(*AUTHORS))):
+    return translate(lambda: repository(request).catalog_index())
 
 
 @router.get('/admin/catalog/{kind}')
@@ -134,10 +140,7 @@ def published_answer(question_id: int, request: Request):
     return translate(operation)
 
 
-@router.post('/questions/{question_id}/practice')
-def practice(question_id: int, payload: PracticeAnswer, request: Request):
-    # A read-only operation: the answer is evaluated on the server, never supplied
-    # by the browser. No exam attempt or scoring record is changed.
+def evaluate_practice_choice(question_id: int, payload: PracticeAnswer, request: Request):
     from app.db.questions import QuestionsRepository
     def operation():
         row = (repository(request).get(question_id,public=True) if request.app.state.settings.question_authoring_enabled
@@ -148,6 +151,18 @@ def practice(question_id: int, payload: PracticeAnswer, request: Request):
             raise ContentConflict
         return practice_feedback(row,payload.option_id)
     return translate(operation)
+
+
+@router.post('/questions/{question_id}/practice')
+def practice(question_id: int, payload: PracticeAnswer, request: Request):
+    return evaluate_practice_choice(question_id, payload, request)
+
+
+@router.post('/questions/{question_id}/daily-challenge/check')
+@router.post('/questions/{question_id}/daily-challenge/submit', dependencies=[Depends(get_current_principal)])
+def evaluate_daily_challenge(question_id: int, payload: PracticeAnswer, request: Request):
+    feedback = evaluate_practice_choice(question_id, payload, request)
+    return {'is_correct': feedback['is_correct']}
 
 
 def image_type(data):
@@ -184,10 +199,10 @@ def sanitize_image(data):
 def storage(request, path, method='GET', data=None, content_type=None):
     settings = request.app.state.settings
     if not settings.supabase_storage_key or not settings.supabase_url:
-        raise HTTPException(503, detail={'code':'storage_not_configured','message':'Media storage is not configured.'})
+        raise HTTPException(503, detail={'code':'storage_not_configured','message':'Image uploads and stored previews require SUPABASE_STORAGE_KEY and a private Supabase Storage bucket.'})
     key = settings.supabase_storage_key.get_secret_value()
     url = f'{settings.supabase_url.rstrip("/")}/storage/v1/object/{settings.storage_bucket}/{path}'
-    headers = {'Authorization':f'Bearer {key}','apikey':key}
+    headers = service_headers(key)
     if content_type:
         headers['Content-Type']=content_type
     try:

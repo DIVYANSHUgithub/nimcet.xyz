@@ -2,18 +2,19 @@ import { useEffect } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
 import { pageTitle } from '../lib/navigation'
+import PageLoading from './PageLoading'
 
 export function RequireSession({ children }) {
   const { user, loading } = useAuth()
   const location = useLocation()
-  if (loading) return <main className="app-recovery" role="status">Checking your sign-in…</main>
+  if (loading) return <PageLoading message="Checking your sign-in…" />
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search + location.hash }} />
   return children
 }
 
 export function SignedOutOnly({ children, authPending = false }) {
   const { user, loading } = useAuth()
-  if (loading) return <main className="app-recovery" role="status">Checking your sign-in…</main>
+  if (loading) return <PageLoading message="Checking your sign-in…" />
   // An auth form that just created a session still owns its return navigation.
   if (user && !authPending) return <Navigate to="/" replace />
   return children

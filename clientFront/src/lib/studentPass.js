@@ -34,8 +34,10 @@ export const indiaTime = new Intl.DateTimeFormat('en-IN', {
 export const passOrderLabels = {
   awaiting_payment: 'Awaiting payment',
   checkout_closed: 'Checkout closed',
-  awaiting_approval: 'Paid · Awaiting approval',
-  review_overdue: 'Paid · Approval overdue',
+  checkout_replaced: 'Checkout replaced',
+  // Keep legacy order states readable while the older API is still deployed.
+  awaiting_approval: 'Paid · Pass pending',
+  review_overdue: 'Paid · Pass pending',
   active: 'Pass active',
   expired: 'Pass expired',
   duplicate_payment: 'Duplicate payment · Refund review',

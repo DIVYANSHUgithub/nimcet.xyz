@@ -47,7 +47,7 @@ export default function PYQ() {
             <Link key={label} to={viewLink(tests)} aria-current={showTests === tests ? 'page' : undefined}
               className={cn('inline-flex min-h-10 items-center gap-2 border px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:px-4',
                 showTests ? 'rounded-full font-medium' : 'rounded-md font-semibold',
-                showTests === tests ? 'border-brand bg-brand text-white' : 'border-line bg-surface text-ink-muted hover:bg-canvas-muted hover:text-ink-heading')}>
+                showTests === tests ? 'border-brand bg-brand text-on-brand' : 'border-line bg-surface text-ink-muted hover:bg-canvas-muted hover:text-ink-heading')}>
               <Icon size={16} aria-hidden="true" />{label}
             </Link>
           ))}

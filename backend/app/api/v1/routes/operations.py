@@ -6,7 +6,7 @@ from app.api.v1.routes.content import translate
 from app.db.operations import OperationsRepository,OperationDenied
 from app.db.content import ContentConflict
 from app.schemas.operations import Reason,RoleReplacement,AccountChange,ReviewChange,TestMetadata,ArchiveMedia,TestAvailability
-from app.services.auth_directory import AuthDirectory,DirectoryUnavailable,DirectoryUserMissing
+from app.services.auth_directory import AuthDirectory,DirectoryNotConfigured,DirectoryUnavailable,DirectoryUserMissing
 
 router=APIRouter()
 AUTHORS=('editor','test_manager','administrator','super_administrator')
@@ -29,6 +29,7 @@ def execute(operation):
             raise HTTPException(422,detail={'code':'invalid_operation','message':'Check account verification, configuration and workflow requirements.'}) from None
     try: return translate(call)
     except OperationDenied: raise HTTPException(403,detail={'code':'operation_forbidden','message':'This account operation is not permitted.'}) from None
+    except DirectoryNotConfigured: raise HTTPException(503,detail={'code':'directory_not_configured','message':'Users & roles requires SUPABASE_ADMIN_KEY on the backend.'}) from None
     except DirectoryUnavailable: raise HTTPException(503,detail={'code':'directory_unavailable','message':'The account directory is unavailable.'}) from None
     except DirectoryUserMissing: raise HTTPException(404,detail={'code':'user_not_found','message':'The account was not found.'}) from None
 
@@ -37,7 +38,10 @@ def execute(operation):
 def capabilities(request:Request,principal=Depends(require_roles(*AUTHORS))):
     s=request.app.state.settings
     return {'questions':s.question_authoring_enabled,'tests':s.test_engine_enabled,'pyq':s.phase5_enabled,
-            'workflows':s.admin_workflows_enabled and s.trusted_role_lookup_enabled,'directory':bool(s.supabase_admin_key) and s.admin_workflows_enabled}
+            'workflows':s.admin_workflows_enabled and s.trusted_role_lookup_enabled,
+            'directory':bool(s.supabase_url and s.supabase_admin_key) and s.admin_workflows_enabled,
+            'media_storage':bool(s.supabase_url and s.supabase_storage_key),
+            'student_pass':s.payments_enabled and s.payment_admin_configured}
 
 
 @router.get('/operations/summary')

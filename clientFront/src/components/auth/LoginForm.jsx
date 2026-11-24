@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import { Eye, EyeOff, LoaderCircle, Lock, Mail } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { authLinkTo } from '../../lib/navigation'
 import SocialLogin from './SocialLogin'
@@ -50,7 +50,11 @@ export default function LoginForm({ onSubmit, onForgotPassword, isLoading, isRec
           {errors.password && <p id="login-password-error" className="mt-1.5 text-xs text-danger" role="alert">{errors.password}</p>}
         </div>
 
-        <button type="submit" className="min-h-12 w-full rounded-md bg-brand px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60" disabled={isLoading}>{isLoading ? 'Logging in…' : 'Log in'}</button>
+        <button type="submit" className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-wait disabled:opacity-60" disabled={isLoading}>
+          {isLoading && <LoaderCircle size={16} className="motion-safe:animate-spin" aria-hidden="true" />}
+          {isLoading ? 'Logging in…' : 'Log in'}
+        </button>
+        <span className="sr-only" role="status">{isLoading ? 'Logging in…' : ''}</span>
       </form>
       <SocialLogin />
       <p className="mt-6 text-center text-sm text-ink-muted">Don&apos;t have an account? <Link to={authLinkTo('/signup', location)} className="font-semibold text-ink-heading underline underline-offset-2 hover:text-ink-muted">Sign up</Link></p>

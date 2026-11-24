@@ -99,6 +99,8 @@ const server = await createServer({
 
 let root
 const button = label => [...document.querySelectorAll('button')].find(element => element.textContent.trim() === label)
+const themeButton = () => document.querySelector('button[aria-label="Dark mode"]')
+const theme = () => document.documentElement.dataset.theme
 const visible = text => document.querySelector('main')?.textContent.includes(text)
 const click = async label => {
   const control = button(label)
@@ -131,6 +133,15 @@ try {
   await mount()
   await waitUntil(() => locationPathIs('/login') && document.querySelector('input[type="password"]'))
   assert.equal(progressReads, 0)
+  assert.equal(theme(), 'light')
+  assert.equal(themeButton().getAttribute('aria-pressed'), 'false')
+  await act(async () => themeButton().click())
+  assert.equal(theme(), 'dark')
+  await unmount()
+  await mount()
+  await waitUntil(() => themeButton()?.getAttribute('aria-pressed') === 'true')
+  assert.equal(theme(), 'dark')
+  assert.equal(storedUser.user_metadata.theme, undefined)
   await type('input[type="email"]', userFixture.email)
   await type('input[type="password"]', 'synthetic-password')
   await click('Log in')
@@ -142,6 +153,18 @@ try {
   assert.ok(visible('Score pending'))
   assert.ok(!visible('999'))
 
+  assert.equal(theme(), 'light')
+  assert.equal(themeButton().getAttribute('aria-pressed'), 'false')
+  updateFails = true
+  await act(async () => themeButton().click())
+  assert.equal(theme(), 'light')
+  assert.ok(document.querySelector('header').textContent.includes('Could not save your theme.'))
+  updateFails = false
+  await act(async () => themeButton().click())
+  assert.equal(theme(), 'dark')
+  assert.equal(themeButton().getAttribute('aria-pressed'), 'true')
+  assert.equal(storedUser.user_metadata.theme, 'dark')
+
   await type('#profile-name', '  Updated Student  ')
   await type('#profile-username', '')
   updateFails = true
@@ -151,7 +174,7 @@ try {
   updateFails = false
   await click('Save changes')
   assert.ok(visible('Profile saved.'))
-  assert.deepEqual(storedUser.user_metadata, { full_name: 'Updated Student' })
+  assert.deepEqual(storedUser.user_metadata, { full_name: 'Updated Student', theme: 'dark' })
   await type('#profile-name', 'Unsaved Student')
   await click('Cancel')
   assert.equal(document.querySelector('#profile-name').value, 'Updated Student')
@@ -167,6 +190,7 @@ try {
   progressFails = true
   await mount()
   await waitUntil(() => visible('Test progress could not be loaded'))
+  assert.equal(theme(), 'dark')
   assert.equal(document.querySelector('#profile-name').value, 'Updated Student')
   assert.equal(document.querySelector('#profile-username').value, '')
   assert.ok(visible('Pending confirmation for updated@example.test'))
@@ -178,6 +202,7 @@ try {
     ...userFixture, id: 'student-2', identities: [{ provider: 'google' }], user_metadata: { name: 'Social Student' },
   }, 'SIGNED_IN'))
   await waitUntil(() => visible('Social Student'))
+  assert.equal(theme(), 'light')
   assert.equal(document.querySelector('#profile-name').value, 'Social Student')
   assert.ok(visible('Google'))
   assert.equal(button('Send password reset'), undefined)
@@ -186,7 +211,16 @@ try {
   await click('Sign out')
   await waitUntil(() => locationPathIs('/login'))
   assert.ok(!visible('Social Student'))
-  console.log('Profile checks passed for authentication, account edits, pending email, recovery, progress, and account changes.')
+  assert.equal(theme(), 'dark')
+  await act(async () => themeButton().click())
+  assert.equal(theme(), 'light')
+  await act(async () => setSession(storedUser, 'SIGNED_IN'))
+  await waitUntil(() => themeButton()?.getAttribute('aria-pressed') === 'true')
+  assert.equal(theme(), 'dark')
+  await act(async () => themeButton().click())
+  assert.equal(theme(), 'light')
+  assert.equal(storedUser.user_metadata.theme, 'light')
+  console.log('Profile checks passed for authentication, account edits, pending email, recovery, progress, account changes, and theme preferences.')
 } finally {
   if (root) await act(async () => root.unmount())
   await server.close()

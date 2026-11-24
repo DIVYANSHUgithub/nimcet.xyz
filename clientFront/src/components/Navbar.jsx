@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, Search, UserRound, X } from 'lucide-react'
+import { Menu, Moon, Search, Sun, UserRound, X } from 'lucide-react'
 import Container from './ui/Container'
 import Button from './ui/Button'
 import { authLinkTo, isNavActive } from '../lib/navigation'
@@ -20,7 +20,8 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
   const { pathname } = location
-  const { user, signOut } = useAuth()
+  const { user, theme, toggleTheme, loading, signOut } = useAuth()
+  const [savingTheme, setSavingTheme] = useState(false)
   const [notice, setNotice] = useState('')
   const menuButtonRef = useRef(null)
   const isLoginPage = pathname === '/login'
@@ -43,9 +44,21 @@ export default function Navbar() {
     }
   }
 
+  const handleThemeToggle = async () => {
+    setSavingTheme(true)
+    setNotice('')
+    try {
+      await toggleTheme()
+    } catch {
+      setNotice('Could not save your theme. Try again.')
+    } finally {
+      setSavingTheme(false)
+    }
+  }
+
   return (
     <header className="sticky top-0 z-50 border-b border-line bg-canvas">
-      <Container className="flex h-[3.75rem] items-center justify-between gap-4">
+      <Container className="flex h-[3.75rem] items-center justify-between gap-2 md:gap-4">
         <Link
           to="/"
           className="shrink-0 text-[0.9375rem] font-bold tracking-wide text-ink-heading"
@@ -53,7 +66,7 @@ export default function Navbar() {
           NIMCET.XYZ
         </Link>
 
-        <nav className="hidden items-center gap-8 md:flex" aria-label="Main navigation">
+        <nav className="hidden items-center gap-4 md:flex lg:gap-8" aria-label="Main navigation">
           {navLinks.map((link) =>
             link.to ? (
               <Link
@@ -70,7 +83,7 @@ export default function Navbar() {
           )}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <Link
             to="/questions"
             className="hidden size-9 items-center justify-center rounded-sm text-ink-muted hover:bg-canvas-muted hover:text-ink-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand md:inline-flex"
@@ -78,10 +91,21 @@ export default function Navbar() {
           >
             <Search size={20} />
           </Link>
+          <button
+            type="button"
+            className="grid size-10 shrink-0 place-items-center rounded-sm text-ink-muted hover:bg-canvas-muted hover:text-ink-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-60"
+            aria-label="Dark mode"
+            aria-pressed={theme === 'dark'}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            onClick={handleThemeToggle}
+            disabled={!toggleTheme || loading || savingTheme}
+          >
+            {theme === 'dark' ? <Sun size={19} aria-hidden="true" /> : <Moon size={19} aria-hidden="true" />}
+          </button>
           {user ? (
             <>
               <Button as={Link} to="/profile" size="sm" variant="ghost" aria-current={isNavActive(pathname, '/profile') ? 'page' : undefined} onClick={() => setMenuOpen(false)}>
-                <UserRound size={16} aria-hidden="true" /> Profile
+                <UserRound size={16} aria-hidden="true" /> <span className="max-[359px]:sr-only">Profile</span>
               </Button>
               <button type="button" onClick={handleSignOut} className="hidden min-h-9 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-canvas-muted hover:text-ink-heading md:inline-flex md:items-center">Sign out</button>
             </>
@@ -99,13 +123,13 @@ export default function Navbar() {
           )}
           {!user && isSignupPage ? (
             <span
-              className="hidden min-h-9 items-center rounded-md border border-brand bg-brand px-4 text-[0.8125rem] font-medium text-white md:inline-flex"
+              className="hidden min-h-9 items-center rounded-md border border-brand bg-brand px-4 text-[0.8125rem] font-medium text-on-brand md:inline-flex"
               aria-current="page"
             >
               Sign Up
             </span>
           ) : !user ? (
-            <Link to={authLinkTo('/signup', location)} className="hidden min-h-9 items-center rounded-md border border-brand bg-brand px-4 text-[0.8125rem] font-semibold text-white transition hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand md:inline-flex">
+            <Link to={authLinkTo('/signup', location)} className="hidden min-h-9 items-center rounded-md border border-brand bg-brand px-4 text-[0.8125rem] font-semibold text-on-brand transition hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand md:inline-flex">
               Sign Up
             </Link>
           ) : null}

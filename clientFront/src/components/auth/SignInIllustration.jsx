@@ -2,6 +2,7 @@ export default function SignInIllustration() {
   return (
     <div className="[display:none] [justify-content:center] lg:[display:flex] [width:100%] [max-width:320px] [height:auto]">
       <svg
+        className="dark:invert"
         viewBox="0 0 320 220"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"

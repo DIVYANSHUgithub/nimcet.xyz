@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, SecretStr
@@ -8,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=Path(__file__).resolve().parents[2] / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
@@ -47,9 +48,13 @@ class Settings(BaseSettings):
     cors_allowed_origins: str = "http://localhost:5173"
 
     @property
-    def payments_configured(self) -> bool:
+    def payment_admin_configured(self) -> bool:
         return bool(self.test_engine_enabled and self.trusted_role_lookup_enabled
-                    and self.admin_workflows_enabled and self.razorpay_key_id
+                    and self.admin_workflows_enabled)
+
+    @property
+    def payments_configured(self) -> bool:
+        return bool(self.payment_admin_configured and self.razorpay_key_id
                     and self.razorpay_key_secret and self.razorpay_webhook_secret
                     and self.razorpay_key_secret != self.razorpay_webhook_secret)
 

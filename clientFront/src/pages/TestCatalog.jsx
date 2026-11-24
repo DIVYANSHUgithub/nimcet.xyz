@@ -126,7 +126,7 @@ function TestCatalogPage() {
 
         <div className="mt-10 flex flex-wrap items-center gap-2" aria-label="Filter tests by type">
           {categories.map((category) => (
-            <button key={category} type="button" onClick={() => setFilter(category)} className={`min-h-10 rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${filter === category ? 'border-brand bg-brand text-white' : 'border-line bg-surface text-ink-muted hover:bg-canvas-muted hover:text-ink-heading'}`} aria-pressed={filter === category}>
+            <button key={category} type="button" onClick={() => setFilter(category)} className={`min-h-10 rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${filter === category ? 'border-brand bg-brand text-on-brand' : 'border-line bg-surface text-ink-muted hover:bg-canvas-muted hover:text-ink-heading'}`} aria-pressed={filter === category}>
               {category === 'all' ? 'All tests' : KIND_LABELS[category] || category}
             </button>
           ))}

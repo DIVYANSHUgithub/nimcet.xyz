@@ -14,7 +14,12 @@ def full_refund(gateway, payment):
 def reconcile_order(repository, gateway, order):
     if not order["gateway_order_id"] or not repository.claim_reconciliation(order["id"]):
         return
-    pending_refunds = repository.pending_refund_ids(order["id"])
+    sync_order_payments(repository, gateway, order, repository.pending_refund_ids(order["id"]))
+
+
+def sync_order_payments(repository, gateway, order, pending_refunds=()):
+    """Record captures and return whether any attempts are still unsettled."""
+    unsettled = False
     for payment in gateway.payments(order["gateway_order_id"]):
         if payment.get("order_id") != order["gateway_order_id"]:
             raise PaymentError("payment_mismatch", "Payment does not match the checkout order.", 422)
@@ -23,3 +28,6 @@ def reconcile_order(repository, gateway, order):
                            or payment["id"] in pending_refunds)
             refund = full_refund(gateway, payment) if need_refund else None
             repository.record_capture(payment, refund=refund)
+        elif payment.get("status") != "failed":
+            unsettled = True
+    return unsettled

@@ -41,7 +41,7 @@ export default function QuestionCard({ question, index, onBookmark, returnTo }) 
           </>}
         </div>
         <div className="flex items-center gap-2">
-          <Link to={`/questions/${encodeURIComponent(id)}`} state={returnTo ? { pyqReturn: returnTo } : undefined} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-ink-heading px-3.5 text-sm font-semibold text-white transition hover:bg-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+          <Link to={`/questions/${encodeURIComponent(id)}`} state={returnTo ? { pyqReturn: returnTo } : undefined} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-ink-heading px-3.5 text-sm font-semibold text-on-brand transition hover:bg-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
             View question <ArrowRight size={16} aria-hidden="true" />
           </Link>
           {onBookmark && <button type="button" className="grid size-10 place-items-center rounded-md border border-line-strong bg-surface text-ink-muted transition hover:bg-canvas-muted hover:text-ink-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" onClick={() => onBookmark(question)} aria-label="Save question">

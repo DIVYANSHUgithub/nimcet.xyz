@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import ConnectionStatus from './components/ConnectionStatus'
 import AppBoundary from './components/AppBoundary'
+import PageLoading from './components/PageLoading'
 import { RequireSession, RouteAccessibility } from './components/RouteAccess'
 import { AuthProvider } from './context/AuthContext'
 import OAuthReturn from './components/OAuthReturn'
@@ -31,7 +32,7 @@ function NotFound() {
       <div>
         <h1 className="text-2xl font-bold text-ink-heading">Page not found</h1>
         <p className="mt-2 text-sm text-ink-muted">That route is not available.</p>
-        <Link to="/" className="mt-4 inline-flex min-h-10 items-center rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover">Go home</Link>
+        <Link to="/" className="mt-4 inline-flex min-h-10 items-center rounded-md bg-brand px-4 text-sm font-semibold text-on-brand hover:bg-brand-hover">Go home</Link>
       </div>
     </main>
   )
@@ -39,13 +40,14 @@ function NotFound() {
 
 function App() {
   return (
-    <AppBoundary><BrowserRouter>
+    // Commit navigation immediately so Suspense can show feedback while the page loads.
+    <AppBoundary><BrowserRouter useTransitions={false}>
       <AuthProvider>
         <OAuthReturn />
         <RouteAccessibility />
         <ConnectionStatus />
         <DeviceSessionNotice />
-        <Suspense fallback={<div className="grid min-h-svh place-items-center text-sm text-ink-muted" role="status">Loading page…</div>}>
+        <Suspense fallback={<PageLoading />}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />

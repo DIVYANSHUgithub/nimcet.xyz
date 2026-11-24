@@ -1,7 +1,8 @@
 export default function SignupIllustration() {
   return (
-    <div className="signup-illustration" aria-hidden="true">
+    <div className="mx-auto mb-3 hidden w-full max-w-80 lg:block" aria-hidden="true">
       <svg
+        className="block w-full dark:invert"
         viewBox="0 0 520 360"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"

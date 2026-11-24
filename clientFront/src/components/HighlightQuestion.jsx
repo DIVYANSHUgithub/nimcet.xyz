@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
-import { Bookmark, ArrowRight } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { getRandomMathematicsQuestions, submitPracticeAnswer } from '../lib/questionsApi'
+import { checkDailyChallengeAnswer, getRandomMathematicsQuestions, submitDailyChallengeAnswer } from '../lib/questionsApi'
 import { normalizeQuestion } from '../utils/normalizeQuestion'
 import Badge from './ui/Badge'
+import Button from './ui/Button'
 import RichContent from './RichContent'
 import Toast from './Toast'
 import LoginPrompt from './LoginPrompt'
@@ -15,9 +16,10 @@ export default function HighlightQuestion() {
   const dateKey = useDailyDateKey()
   const { user } = useAuth()
   const [request, setRequest] = useState({ key: null, question: null, error: '' })
-  const [interaction, setInteraction] = useState({ key: null, showAnswer: false, selectedOption: '' })
+  const [interaction, setInteraction] = useState(null)
   const [toast, setToast] = useState('')
   const [loginMessage, setLoginMessage] = useState('')
+  const closeLoginPrompt = useCallback(() => setLoginMessage(''), [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -31,25 +33,42 @@ export default function HighlightQuestion() {
     return () => controller.abort()
   }, [dateKey])
 
-  const handleOptionSelect = async (index) => {
-    if (!user) {
-      setLoginMessage('Sign in to choose an answer and practice this question.')
-      return
-    }
-    setInteraction({ key: dateKey, showAnswer: false, selectedOption: String(index), pending: true })
+  const requestCurrent = request.key === dateKey
+  const question = requestCurrent ? request.question : null
+  const current = interaction?.key === dateKey ? interaction : null
+  const selectedIndex = current?.index ?? null
+  const selectedOptionId = selectedIndex === null ? null : question?.optionIds[selectedIndex]
+  const submitted = Boolean(current?.submittedBy && current.submittedBy === user?.id)
+  const isCorrect = current?.submittedBy && !submitted ? undefined : current?.isCorrect
+
+  const evaluateChoice = async (index, submit = false) => {
+    const pending = { key: dateKey, index, pending: true }
+    setInteraction(pending)
     try {
-      const feedback = await submitPracticeAnswer(question.id, question.optionIds[index], question.revision)
-      setInteraction({ key: dateKey, showAnswer: true, selectedOption: String(index), feedback, pending: false })
-    } catch {
-      setInteraction({ key: dateKey, showAnswer: false, selectedOption: '', pending: false })
-      setToast('Unable to check your answer. Please try again.')
+      const evaluate = submit ? submitDailyChallengeAnswer : checkDailyChallengeAnswer
+      const result = await evaluate(question.id, question.optionIds[index], question.revision)
+      setInteraction((previous) => previous === pending ? {
+        key: dateKey, index, isCorrect: result.is_correct, submittedBy: submit ? user.id : null,
+      } : previous)
+    } catch (error) {
+      setInteraction((previous) => previous === pending ? { key: dateKey, index: submit ? index : null } : previous)
+      if (submit && error.status === 401) {
+        setLoginMessage('Sign in to submit your answer to Today’s Challenge.')
+      } else {
+        setToast(submit ? 'Unable to submit your answer. Please try again.' : 'Unable to check your answer. Please try again.')
+      }
     }
   }
 
-  const requestCurrent = request.key === dateKey
-  const question = requestCurrent ? request.question : null
-  const showAnswer = interaction.key === dateKey && interaction.showAnswer
-  const selectedOption = interaction.key === dateKey ? interaction.selectedOption : ''
+  const handleOptionSelect = (index) => {
+    if (user) setInteraction({ key: dateKey, index })
+    else void evaluateChoice(index)
+  }
+
+  const handleSubmit = () => {
+    if (!user) setLoginMessage('Sign in to submit your answer to Today’s Challenge.')
+    else if (selectedIndex !== null) void evaluateChoice(selectedIndex, true)
+  }
   return (
     <>
       <article className="rounded-xl border border-line bg-surface p-5 shadow-card sm:p-6">
@@ -66,33 +85,33 @@ export default function HighlightQuestion() {
             <fieldset className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <legend className="mb-2 text-xs font-medium text-ink-muted">Choose an answer</legend>
               {question.options.map((option, index) => {
-                const selected = selectedOption === String(index)
-                const isCorrect = showAnswer && question.optionIds[index] === interaction.feedback?.correct_option_id
+                const selected = selectedIndex === index
                 return (
-                  <label key={`${question.id}-choice-${index}`} className={`flex min-h-11 min-w-0 cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm leading-6 transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand ${isCorrect ? 'border-success-border bg-success-bg' : selected ? 'border-option-selected-border bg-option-selected' : 'border-line hover:bg-canvas-muted'}`}>
-                    <input className="sr-only" type="radio" name={`featured-${question.id}`} checked={selected} disabled={interaction.pending || Boolean(interaction.feedback)} onChange={() => handleOptionSelect(index)} />
+                  <label key={`${question.id}-choice-${index}`} className={`flex min-h-11 min-w-0 cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm leading-6 transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand ${selected ? 'border-option-selected-border bg-option-selected' : 'border-line hover:bg-canvas-muted'}`}>
+                    <input className="sr-only" type="radio" name={`featured-${question.id}`} checked={selected} disabled={current?.pending || submitted} onChange={() => handleOptionSelect(index)} />
                     <span className="font-semibold text-ink-muted">{String.fromCharCode(65 + index)}.</span>
                     <span className="min-w-0 break-words text-ink"><QuestionOptionContent option={option} /></span>
                   </label>
                 )
               })}
             </fieldset>
-            {showAnswer && <div className="mt-4 rounded-lg border border-success-border bg-success-bg p-3 text-sm leading-6 text-ink" role="region" aria-label="Answer and explanation">
-              <div className="mb-1 font-semibold text-ink-heading">Answer: <QuestionOptionContent option={question.options[question.optionIds.indexOf(interaction.feedback?.correct_option_id)]} /></div>
-              {interaction.feedback?.explanation_blocks?.length ? <RichContent blocks={interaction.feedback.explanation_blocks} /> : <QuestionMedia text={interaction.feedback?.explanation} />}
-            </div>}
+            <div role="status">
+              {typeof isCorrect === 'boolean' && <p className={`mt-3 text-sm font-semibold ${isCorrect ? 'text-success' : 'text-danger'}`}>
+                {isCorrect ? 'Correct' : 'Incorrect'}
+              </p>}
+            </div>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Link to={`/questions/${encodeURIComponent(question.id)}?answer=show`} state={{ selectedOptionId: selectedOption === '' ? null : question.optionIds[Number(selectedOption)] }} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+              <Button as={Link} to={`/questions/${encodeURIComponent(question.id)}?answer=show`} state={{ selectedOptionId }}>
                 View answer <ArrowRight size={16} aria-hidden="true" />
-              </Link>
-              <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-line-strong px-4 text-sm font-medium text-ink-heading hover:bg-canvas-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" onClick={() => setToast('Bookmarks are not available yet. This question was not saved.')}>
-                <Bookmark size={16} aria-hidden="true" /> Save question
-              </button>
+              </Button>
+              <Button variant="secondary" disabled={Boolean(user && (selectedIndex === null || current?.pending || submitted))} onClick={handleSubmit}>
+                {submitted ? 'Submitted' : 'Submit'}
+              </Button>
             </div>
           </>
         )}
       </article>
-      <LoginPrompt message={loginMessage} onClose={() => setLoginMessage('')} />
+      <LoginPrompt message={loginMessage} onClose={closeLoginPrompt} />
       <Toast message={toast} onDismiss={() => setToast('')} />
     </>
   )

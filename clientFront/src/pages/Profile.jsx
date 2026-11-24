@@ -37,7 +37,6 @@ function AccountTier() {
 
   const pass = result?.pass
   const active = pass?.active === true
-  const waiting = pass?.orders?.some(order => ['awaiting_approval', 'review_overdue'].includes(order.status))
   const label = !result ? 'Checking…' : result.unavailable ? 'Unavailable' : active ? 'Student Pass' : 'Free'
 
   return <section className={cardClass} aria-labelledby="account-tier-title">
@@ -49,7 +48,6 @@ function AccountTier() {
     </div>
     {pass && <p className="mt-2 text-sm text-ink-muted">
       {active ? 'Your active pass includes all paid tests.'
-        : waiting ? 'Your payment is awaiting approval. Free resources are available while you wait.'
         : 'You have access to the Question Bank, PYQs, and free tests.'}
     </p>}
     {result?.unavailable && <Button size="sm" variant="secondary" className="mt-3" onClick={() => {
@@ -223,16 +221,16 @@ export default function Profile() {
 
   return <PageShell className="bg-canvas-muted">
     <main className="mx-auto w-full max-w-6xl px-5 py-8 md:px-8 md:py-12">
-      <section className="rounded-xl bg-brand px-5 py-7 text-white shadow-card sm:px-8 sm:py-9" aria-labelledby="profile-title">
+      <section className="rounded-xl bg-brand px-5 py-7 text-on-brand shadow-card sm:px-8 sm:py-9" aria-labelledby="profile-title">
         <h1 id="profile-title" className="text-3xl font-bold tracking-tight">My profile</h1>
-        <div className="mt-5 flex items-center gap-4 border-t border-white/20 pt-5">
-          <div className="grid size-14 shrink-0 place-items-center rounded-full bg-white/15 text-lg font-bold" aria-hidden="true">
+        <div className="mt-5 flex items-center gap-4 border-t border-on-brand/20 pt-5">
+          <div className="grid size-14 shrink-0 place-items-center rounded-full bg-on-brand/15 text-lg font-bold" aria-hidden="true">
             {initials || <UserRound size={25} />}
           </div>
           <div className="min-w-0">
             <p className="wrap-anywhere text-xl font-semibold">{fullName || username || 'Student'}</p>
-            {(fullName && username) && <p className="mt-0.5 wrap-anywhere text-sm text-gray-200">@{username}</p>}
-            {Number.isFinite(joined.getTime()) && <p className="mt-0.5 text-sm text-gray-200">Joined <time dateTime={user.created_at}>{formatDisplayDate(joined)}</time></p>}
+            {(fullName && username) && <p className="mt-0.5 wrap-anywhere text-sm text-gray-200 dark:text-on-brand/85">@{username}</p>}
+            {Number.isFinite(joined.getTime()) && <p className="mt-0.5 text-sm text-gray-200 dark:text-on-brand/85">Joined <time dateTime={user.created_at}>{formatDisplayDate(joined)}</time></p>}
           </div>
         </div>
       </section>

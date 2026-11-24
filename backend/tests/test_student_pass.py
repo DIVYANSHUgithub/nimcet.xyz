@@ -9,9 +9,9 @@ from fastapi.testclient import TestClient
 
 from app.api import dependencies
 from app.core.config import Settings
-from app.core.security import VerifiedIdentity
+from app.core.security import Principal, VerifiedIdentity
 from app.db.pass_devices import DeviceConflict
-from app.db.payments import PaymentError, _state
+from app.db.payments import CheckoutRepriceRequired, PaymentError, _state
 from app.main import create_app
 
 BUYER = "11111111-1111-4111-8111-111111111111"
@@ -56,7 +56,7 @@ class Repository:
         self.captures.append((payment, kwargs))
 
     def summary(self, _user):
-        return {"orders": [{"status": "awaiting_approval"}] if self.captures else []}
+        return {"orders": [{"status": "active"}] if self.captures else []}
 
 
 class Gateway:
@@ -99,7 +99,51 @@ def test_checkout_requires_order_ownership_and_valid_signature(monkeypatch):
     assert not repository.captures
 
 
-def test_checkout_requires_capture_and_students_cannot_approve(monkeypatch):
+def test_checkout_reprices_unpaid_order_after_checking_razorpay(monkeypatch):
+    client, repository, gateway = build(monkeypatch)
+    previous = {"id": ORDER, "gateway_order_id": "order_sample", "amount": 29900}
+    new = {"id": uuid4(), "gateway_order_id": None, "amount": 9900}
+    checks = []
+
+    def reserve(user, amount, *, checked_previous=None):
+        assert (user, amount) == (BUYER, 9900)
+        if checked_previous is None:
+            raise CheckoutRepriceRequired(previous)
+        assert checks == ["order_sample"]
+        assert checked_previous == (ORDER, "order_sample")
+        return new
+
+    def existing_payments(order_id):
+        checks.append(order_id)
+        return [{**PAYMENT, "status": "failed"}]
+
+    monkeypatch.setattr(repository, "reserve_order", reserve, raising=False)
+    monkeypatch.setattr(gateway, "payments", existing_payments, raising=False)
+    monkeypatch.setattr(gateway, "create_order", lambda order: {"amount": order["amount"]}, raising=False)
+    monkeypatch.setattr(repository, "attach_gateway_order", lambda order, provider: "order_offer", raising=False)
+    response = client.post("/api/v1/payments/orders", json={"amount": 9900}, headers={"Authorization": "Bearer buyer"})
+    assert response.status_code == 200
+    assert response.json()["amount"] == 9900
+    assert response.json()["razorpay_order_id"] == "order_offer"
+    assert response.json()["order_id"] == str(new["id"])
+
+
+def test_checkout_does_not_replace_an_authorized_payment(monkeypatch):
+    client, repository, gateway = build(monkeypatch)
+    previous = {"id": ORDER, "gateway_order_id": "order_sample", "amount": 29900}
+
+    def reserve(user, amount, *, checked_previous=None):
+        assert checked_previous is None, "An unsettled payment must block replacement"
+        raise CheckoutRepriceRequired(previous)
+
+    monkeypatch.setattr(repository, "reserve_order", reserve, raising=False)
+    monkeypatch.setattr(gateway, "payments", lambda order_id: [{**PAYMENT, "status": "authorized"}], raising=False)
+    response = client.post("/api/v1/payments/orders", json={"amount": 9900}, headers={"Authorization": "Bearer buyer"})
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "payment_in_progress"
+
+
+def test_checkout_requires_capture_and_students_cannot_refund(monkeypatch):
     client, repository, gateway = build(monkeypatch)
     auth = {"Authorization": "Bearer buyer"}
     gateway.payment_status = "authorized"
@@ -107,9 +151,31 @@ def test_checkout_requires_capture_and_students_cannot_approve(monkeypatch):
     assert result.json()["orders"] == []
     gateway.payment_status = "captured"
     result = client.post("/api/v1/payments/verify", json=verify_body(), headers=auth)
-    assert result.json()["orders"] == [{"status": "awaiting_approval"}]
+    assert result.json()["orders"] == [{"status": "active"}]
     assert len(repository.captures) == 1
-    assert client.post(f"/api/v1/admin/payments/orders/{ORDER}/approve", headers=auth).status_code == 403
+    refund = client.post("/api/v1/admin/payments/pay_sample/refund",
+                         json={"reason": "Support exception"}, headers=auth)
+    assert refund.status_code == 403
+
+
+def test_admin_can_review_captured_orders_without_local_gateway_credentials(monkeypatch):
+    client, repository, gateway = build(monkeypatch)
+    client.app.state.settings.razorpay_key_secret = None
+
+    async def admin_principal():
+        return Principal(OTHER, frozenset({"super_administrator"}))
+
+    client.app.dependency_overrides[dependencies.get_authenticated_principal] = admin_principal
+    queue = [{"id": str(ORDER), "status": "active"}]
+    monkeypatch.setattr(repository, "admin_queue", lambda page, kind: {"items": queue}, raising=False)
+
+    assert client.get("/api/v1/admin/payments").json()["items"] == queue
+    assert client.post(f"/api/v1/admin/payments/orders/{ORDER}/approve").status_code == 404
+    blocked = client.post(f"/api/v1/admin/payments/orders/{ORDER}/reconcile")
+    assert blocked.status_code == 503
+    assert blocked.json()["error"]["code"] == "payment_gateway_not_configured"
+    assert client.get("/api/v1/payments/pass").status_code == 503
+    assert not gateway.lookups
 
 
 def test_webhook_checks_raw_signature_and_preserves_gateway_event_id(monkeypatch):
@@ -147,14 +213,14 @@ def test_explicit_same_type_device_takeover(monkeypatch):
     assert [attempt[1:] for attempt in attempts] == [("mobile", False), ("mobile", True)]
 
 
-def test_approval_deadline_and_refund_block():
+def test_captured_order_status_respects_cutoff_expiry_and_refunds():
     now = datetime(2027, 1, 1, tzinfo=UTC)
     row = {"confirmed_at": now, "ends_at": now + timedelta(days=7)}
-    assert _state(row, now + timedelta(hours=23, minutes=59)) == "awaiting_approval"
-    assert _state(row, now + timedelta(hours=24)) == "review_overdue"
-    assert _state(row, row["ends_at"]) == "refund_review"
+    assert _state(row, now) == "active"
+    assert _state(row, row["ends_at"]) == "expired"
+    assert _state({**row, "confirmed_at": row["ends_at"]}, row["ends_at"]) == "refund_review"
     assert _state({**row, "received_after_cutoff": True}, now) == "refund_review"
-    active = {**row, "approved_at": now}
-    assert _state(active, now) == "active"
-    assert _state(active, row["ends_at"]) == "expired"
-    assert _state({**active, "refund_status": "requested"}, now) == "refund_pending"
+    assert _state({**row, "is_primary": False}, now) == "duplicate_payment"
+    assert _state({"closed_at": now}, now) == "checkout_replaced"
+    assert _state({**row, "closed_at": now}, now) == "refund_review"
+    assert _state({**row, "refund_status": "requested"}, now) == "refund_pending"

@@ -38,7 +38,7 @@ export default function QuestionImage({ src, alt, unavailable = false }) {
       alt={alt}
       loading="lazy"
       decoding="async"
-      className="my-2 block h-auto max-w-full rounded-md object-contain"
+      className="my-2 block h-auto max-w-full rounded-md object-contain dark:bg-white"
       onError={() => setFailed(true)}
     />
   )

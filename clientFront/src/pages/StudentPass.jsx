@@ -27,18 +27,29 @@ function PassPage({ user, authLoading }) {
   const waiting = ['awaiting_payment', 'awaiting_approval', 'review_overdue', 'refund_pending'].includes(order?.status)
 
   useEffect(() => {
-    if (authLoading) return undefined
-    const controller = new AbortController()
-    const load = () => backendGet('payments/pass', { signal: controller.signal })
-      .then(value => { if (!controller.signal.aborted) setData(value) })
-      .catch(err => { if (!controller.signal.aborted) setError(err.message) })
+    if (authLoading || busy) return undefined
+    let request
+    const load = () => {
+      request?.abort()
+      const controller = new AbortController()
+      request = controller
+      backendGet('payments/pass', { signal: controller.signal })
+        .then(value => { if (!controller.signal.aborted) setData(value) })
+        .catch(err => { if (!controller.signal.aborted) setError(err.message) })
+    }
     load()
     const timer = waiting ? setInterval(load, 15000) : null
-    return () => { controller.abort(); clearInterval(timer) }
-  }, [authLoading, revision, waiting])
+    window.addEventListener('focus', load)
+    return () => {
+      request?.abort()
+      clearInterval(timer)
+      window.removeEventListener('focus', load)
+    }
+  }, [authLoading, busy, revision, waiting])
 
   const canBuy = data?.checkout_open && (!order || ['awaiting_payment', 'refunded'].includes(order.status))
-  const quote = order?.status === 'awaiting_payment' ? order : data
+  const quote = data
+  const priceChanged = order?.status === 'awaiting_payment' && order.amount !== quote?.amount
   const effectiveEnd = data?.ends_at ? new Date(new Date(data.ends_at).getTime() - 60000) : null
 
   async function checkout() {
@@ -47,7 +58,7 @@ function PassPage({ user, authLoading }) {
     try {
       const Razorpay = await loadRazorpay()
       const pending = await backendRequest('payments/orders', { method: 'POST', body: { amount: quote.amount } })
-      const finish = () => { setBusy(false); checkAgain() }
+      const finish = () => setBusy(false)
       const widget = new Razorpay({
         key: pending.key_id, order_id: pending.razorpay_order_id, amount: pending.amount, currency: pending.currency,
         name: 'NIMCET.XYZ', description: 'Student Pass',
@@ -71,7 +82,7 @@ function PassPage({ user, authLoading }) {
       })
       widget.on('payment.failed', () => setNotice('Payment did not complete. If you see a debit, check your order status before retrying.'))
       widget.open()
-    } catch (err) { setError(err.message); setBusy(false); checkAgain() }
+    } catch (err) { setError(err.message); setBusy(false) }
   }
 
   async function reconcile(id) {
@@ -104,9 +115,10 @@ function PassPage({ user, authLoading }) {
               </>}
             </div>}
             {canBuy && <p className="mt-2 text-sm leading-6 text-ink-muted">
-              One-time payment via Razorpay. An admin reviews your verified payment within {data.review_hours} hours.
+              One-time payment via Razorpay. Your pass activates automatically when payment is confirmed.{' '}
               Sales close {indiaTime.format(new Date(data.checkout_closes_at))} IST.
             </p>}
+            {canBuy && priceChanged && <p className="mt-2 text-sm text-ink-muted">We’ll check your previous payment status before opening a checkout at the current price.</p>}
             {canBuy && <div className="mt-4 flex flex-wrap items-center gap-4">
               {user ? <Button disabled={busy} onClick={checkout}>{busy ? 'Please wait…' : order?.status === 'awaiting_payment' ? 'Continue to checkout' : 'Buy Pass'}</Button>
                 : <Button as={Link} to={authLinkTo('/login', location)}>Sign in to buy</Button>}
@@ -125,11 +137,12 @@ function PassPage({ user, authLoading }) {
                 <span>{rupees.format(purchase.amount / 100)}</span>
               </div>
               <p className="mt-1 break-all text-xs text-ink-muted">Order {purchase.id}</p>
-              {purchase.status === 'awaiting_approval' && <p className="mt-2 text-sm text-ink-muted">Review due {indiaTime.format(new Date(purchase.review_due_at))} IST.</p>}
               <div className="mt-3 flex flex-wrap gap-3">
-                {['awaiting_payment', 'checkout_closed', 'refund_pending'].includes(purchase.status) &&
+                {['awaiting_payment', 'checkout_closed', 'checkout_replaced', 'refund_pending'].includes(purchase.status) &&
                   <Button size="sm" variant="secondary" disabled={busy} onClick={() => reconcile(purchase.id)}>Check payment status</Button>}
-                {['awaiting_payment', 'checkout_closed', 'review_overdue', 'refund_review', 'refund_failed', 'refund_pending'].includes(purchase.status) &&
+                {purchase.status === 'active' &&
+                  <a className="self-center text-sm font-medium text-brand underline" href={`mailto:${legalDetails.email}?subject=${encodeURIComponent(`Student Pass refund request: ${purchase.id}`)}`}>Request a refund</a>}
+                {['awaiting_payment', 'checkout_closed', 'awaiting_approval', 'review_overdue', 'refund_review', 'refund_failed', 'refund_pending'].includes(purchase.status) &&
                   <a className="self-center text-sm font-medium text-brand underline" href={`mailto:${legalDetails.email}?subject=${encodeURIComponent(`Student Pass support: ${purchase.id}`)}`}>Contact payment support</a>}
               </div>
             </li>)}

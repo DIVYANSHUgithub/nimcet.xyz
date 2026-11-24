@@ -481,22 +481,22 @@ export default function Hero() {
   const navigate = useNavigate()
 
   return (
-    <section className="relative overflow-hidden bg-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_85%,rgba(99,102,241,0.07),transparent_34%),radial-gradient(ellipse_at_85%_75%,rgba(56,189,248,0.08),transparent_34%)]" />
+    <section className="relative overflow-hidden bg-canvas">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_85%,rgba(99,102,241,0.07),transparent_34%),radial-gradient(ellipse_at_85%_75%,rgba(56,189,248,0.08),transparent_34%)] dark:hidden" />
 
       <Container className="relative grid items-start gap-12 pb-8 pt-14 sm:pt-16 lg:grid-cols-[1.02fr_0.98fr] lg:gap-14 lg:pt-20">
         <div className="min-w-0">
-          <p className="text-xs font-bold tracking-[0.16em] text-blue-600 sm:text-sm">
+          <p className="text-xs font-bold tracking-[0.16em] text-accent sm:text-sm">
             YOUR NIMCET PREPARATION PARTNER
           </p>
 
-          <h1 className="mt-6 max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-[-0.045em] text-slate-950 sm:text-5xl lg:text-[3.9rem]">
+          <h1 className="mt-6 max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-[-0.045em] text-slate-950 sm:text-5xl lg:text-[3.9rem] dark:text-ink-heading">
             Prepare for NIMCET.
             <br />
             One question at a time.
           </h1>
 
-          <p className="mt-5 max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
+          <p className="mt-5 max-w-xl text-base leading-7 text-slate-600 sm:text-lg dark:text-ink">
             Practice topic-wise questions, understand detailed solutions,
             and build confidence for NIMCET.
           </p>
@@ -507,20 +507,20 @@ export default function Hero() {
                 <div
                   className={`mb-3 flex h-12 w-12 items-center justify-center rounded-xl ${
                     benefit.color === 'blue'
-                      ? 'bg-blue-50 text-blue-600'
+                      ? 'bg-blue-50 text-accent dark:bg-info-bg'
                       : benefit.color === 'green'
-                        ? 'bg-emerald-50 text-emerald-600'
+                        ? 'bg-emerald-50 text-emerald-600 dark:bg-success-bg dark:text-success'
                         : benefit.color === 'violet'
-                          ? 'bg-violet-50 text-violet-600'
-                          : 'bg-orange-50 text-orange-600'
+                          ? 'bg-violet-50 text-violet-600 dark:bg-option-selected dark:text-violet-300'
+                          : 'bg-orange-50 text-orange-600 dark:bg-warning-bg dark:text-warning'
                   }`}
                 >
                   <BenefitIcon type={benefit.icon} />
                 </div>
-                <h3 className="text-sm font-bold leading-5 text-slate-950">
+                <h3 className="text-sm font-bold leading-5 text-slate-950 dark:text-ink-heading">
                   {benefit.title}
                 </h3>
-                <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm">
+                <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm dark:text-ink">
                   {benefit.description}
                 </p>
               </div>
@@ -535,20 +535,20 @@ export default function Hero() {
         <div className="min-w-0">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-bold tracking-[0.14em] text-blue-600 sm:text-sm">
+              <p className="text-xs font-bold tracking-[0.14em] text-accent sm:text-sm">
                 FROM THE QUESTION BANK
               </p>
-              <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+              <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl dark:text-ink-heading">
                 TODAY'S CHALLENGE
               </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
+              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-ink">
                 Try a daily Mathematics question from the published question bank.
               </p>
             </div>
 
-            <div className="hidden shrink-0 rounded-2xl border border-slate-200 bg-white/90 px-3 py-3 shadow-sm sm:block">
-              <p className="text-xs font-semibold text-slate-800">
-                <span className="mr-2 text-blue-600">▦</span>
+            <div className="hidden shrink-0 rounded-2xl border border-slate-200 bg-surface/90 px-3 py-3 shadow-sm sm:block dark:border-line">
+              <p className="text-xs font-semibold text-slate-800 dark:text-ink-heading">
+                <span className="mr-2 text-accent">▦</span>
                 {new Date().toLocaleDateString('en-IN', {
                   timeZone: 'Asia/Kolkata',
                   weekday: 'short',
@@ -557,22 +557,22 @@ export default function Hero() {
                   year: 'numeric',
                 })}
               </p>
-              <p className="mt-1 text-[11px] text-slate-500">
+              <p className="mt-1 text-[11px] text-slate-500 dark:text-ink-muted">
                 Keep your curiosity alive.
               </p>
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_12px_36px_rgba(15,23,42,0.05)] sm:p-6">
+          <div className="rounded-3xl border border-slate-200 bg-surface p-4 shadow-[0_12px_36px_rgba(15,23,42,0.05)] sm:p-6 dark:border-line dark:shadow-featured">
             <HighlightQuestion />
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-3 px-1 text-xs text-slate-500">
+          <div className="mt-4 flex items-center justify-between gap-3 px-1 text-xs text-slate-500 dark:text-ink-muted">
             <span>One question. One new idea.</span>
             <button
               type="button"
               onClick={() => navigate('/questions')}
-              className="font-semibold text-slate-800 transition hover:text-blue-600"
+              className="font-semibold text-slate-800 transition hover:text-accent dark:text-ink-heading dark:hover:text-accent"
             >
               Explore the Question Bank →
             </button>

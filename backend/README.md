@@ -11,7 +11,7 @@ py -3 -m venv backend\.venv
 backend\.venv\Scripts\python -m pip install -r backend\requirements.txt
 Copy-Item backend\.env.example backend\.env
 Set-Location backend
-.\.venv\Scripts\python -m uvicorn app.main:app --reload
+.\.venv\Scripts\python -m uvicorn app.main:app --reload --reload-include .env
 ```
 
 The copy step creates an ignored local secret/config file. Fill JWT verification values only after confirming the hosted Auth signing mode and claims. `SUPABASE_JWT_MODE=jwks` uses an asymmetric public JWKS URL and explicit algorithm. `SUPABASE_JWT_MODE=hs256` requires the legacy signing secret in a server-only secret store. Do not put either secret in frontend `VITE_*` variables. Issuer and audience have no assumed defaults.
