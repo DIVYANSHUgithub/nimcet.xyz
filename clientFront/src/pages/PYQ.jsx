@@ -31,7 +31,7 @@ export default function PYQ() {
 
   const sections = [
     { tests: false, label: 'All PYQ questions', Icon: LibraryBig },
-    { tests: true, label: 'PYQ tests', Icon: ClipboardList },
+    { tests: true, label: 'FREE PYQ tests', Icon: ClipboardList },
   ]
 
   return (
