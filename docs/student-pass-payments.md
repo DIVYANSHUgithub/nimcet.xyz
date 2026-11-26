@@ -14,7 +14,9 @@ A verified primary capture automatically activates the pass if the payment was i
 
 Students can request a refund through support. An authorized administrator must approve it in the Student Pass screen and enter a reason before the app submits a full refund to Razorpay. Use the same screen for confirmed duplicate charges or approved exceptions. Access stops once the admin initiates a refund. A failed refund stays blocked pending support action. Use the application for refunds so it can register the operation before contacting Razorpay.
 
-Student requests to protected FastAPI routes use one mobile and one desktop slot per account. The slot binds to the verified Supabase Auth session ID. The API uses the browser's reported form factor, so this is a browser session limit rather than physical device attestation. Students can confirm replacing a slot. Public question and PYQ browsing is still available without sign-in.
+Students can use one mobile browser session and one desktop browser session at a time. Sign-in registers the verified Supabase Auth session and immediately replaces any earlier session of the same type. Open pages detect replacement on their next device check and sign out that browser session. The API uses the browser's reported form factor. Public question and PYQ browsing is still available without sign-in.
+
+Apply the student session takeover migration before deploying the updated API and frontend. Device sessions are enabled by default in production independently of payments. Set `DEVICE_SESSIONS_ENABLED=true` in a development or staging environment to exercise the limit.
 
 ## Stage and enable
 

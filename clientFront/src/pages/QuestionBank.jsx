@@ -1,44 +1,31 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import Toast from '../components/Toast'
 import Breadcrumbs from '../components/questions/Breadcrumbs'
-import QuestionBankSidebar from '../components/questions/QuestionBankSidebar'
 import QuestionBankHeader from '../components/questions/QuestionBankHeader'
 import QuestionFilters from '../components/questions/QuestionFilters'
 import QuestionList from '../components/questions/QuestionList'
 import Pagination from '../components/questions/Pagination'
-import Container from '../components/ui/Container'
 import Button from '../components/ui/Button'
-import { backendGet } from '../lib/backendApi'
 import { getQuestions, QUESTION_PAGE_SIZE } from '../lib/questionsApi'
 import { normalizeQuestion } from '../utils/normalizeQuestion'
 import { useQuestionFacets } from '../hooks/useQuestionFacets'
 
 export default function QuestionBank() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const navigate = useNavigate()
   const { subjects } = useQuestionFacets()
-  const subjectParam = searchParams.get('subject')
-  const subject = subjects.some((item) => item.id === subjectParam) ? subjectParam : subjects[0]?.id || 'all'
+  const subject = searchParams.get('subject') || ''
   const topic = searchParams.get('topic') || ''
   const subtopicId = searchParams.get('subtopic') || ''
   const exam = searchParams.get('exam') || ''
   const section = searchParams.get('section') || ''
   const pyq = searchParams.get('pyq') === 'true'
-  const [catalog, setCatalog] = useState({ subtopics: [] })
-  useEffect(() => {
-    const controller = new AbortController()
-    backendGet('catalog', { signal: controller.signal }).then(setCatalog).catch(() => {})
-    return () => controller.abort()
-  }, [])
-  const [questions, setQuestions] = useState([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
-  const [search, setSearch] = useState(() => searchParams.get('search') || '')
-  const [debouncedSearch, setDebouncedSearch] = useState(() => searchParams.get('search') || '')
+  const appliedSearch = searchParams.get('search') || ''
+  const [searchDraft, setSearchDraft] = useState(null)
+  const search = searchDraft?.appliedSearch === appliedSearch ? searchDraft.value : appliedSearch
+  const [response, setResponse] = useState(null)
   const [requestRevision, setRequestRevision] = useState(0)
   const [difficulty, setDifficulty] = useState('')
   const [questionType, setQuestionType] = useState('')
@@ -46,18 +33,24 @@ export default function QuestionBank() {
   const [sort, setSort] = useState('question-number')
   const [page, setPage] = useState(1)
   const [toast, setToast] = useState('')
+  const requestKey = JSON.stringify([page, subject, topic, subtopicId, exam, section, pyq, difficulty, questionType, year, appliedSearch, sort, requestRevision])
+  const current = response?.key === requestKey ? response : null
+  const total = current?.data?.count ?? 0
+  const resultPage = current?.data?.page ?? page
 
   useEffect(() => {
+    const value = search.trim()
+    if (value === appliedSearch) return
     const timer = window.setTimeout(() => {
-      setDebouncedSearch(search.trim())
+      setSearchDraft(null)
       setPage(1)
       const params = new URLSearchParams(searchParams)
-      if (search.trim()) params.set('search', search.trim())
+      if (value) params.set('search', value)
       else params.delete('search')
-      if (params.toString() !== searchParams.toString()) setSearchParams(params, { replace: true })
+      setSearchParams(params, { replace: true })
     }, 250)
     return () => window.clearTimeout(timer)
-  }, [search, searchParams, setSearchParams])
+  }, [search, appliedSearch, searchParams, setSearchParams])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -65,24 +58,19 @@ export default function QuestionBank() {
       page,
       pageSize: QUESTION_PAGE_SIZE,
       signal: controller.signal,
-      filters: { subject, topic, subtopicId, exam, section, pyq, difficulty, questionType, year, search: debouncedSearch, sort },
+      filters: { subject, topic, subtopicId, exam, section, pyq, difficulty, questionType, year, search: appliedSearch, sort },
     })
       .then((result) => {
-        setQuestions(result.data.map(normalizeQuestion))
-        setTotal(result.count)
-        if (result.page !== page) setPage(result.page)
+        if (!controller.signal.aborted) setResponse({ key: requestKey, data: result })
       })
       .catch((error) => {
         if (error.name === 'AbortError' || controller.signal.aborted) return
         console.error('Question bank loading failed:', error)
-        setLoadError('Unable to load questions. Please refresh and try again.')
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
+        setResponse({ key: requestKey, error: 'Unable to load questions. Please try again.' })
       })
 
     return () => controller.abort()
-  }, [page, subject, topic, subtopicId, exam, section, pyq, difficulty, questionType, year, debouncedSearch, sort, requestRevision])
+  }, [page, subject, topic, subtopicId, exam, section, pyq, difficulty, questionType, year, appliedSearch, sort, requestKey])
 
   const patchQuery = (nextValues, replace = false) => {
     const params = new URLSearchParams(searchParams)
@@ -92,106 +80,38 @@ export default function QuestionBank() {
     }
     setSearchParams(params, { replace })
     setPage(1)
-    setLoading(true)
-    setLoadError('')
   }
 
   const updateFilter = (setter, value) => {
     setter(value)
     setPage(1)
-    setLoading(true)
-    setLoadError('')
   }
 
   const handleSubjectChange = (value) => patchQuery({ subject: value })
   const handleTopicChange = (value) => patchQuery({ topic: value }, true)
-  const handleSearchChange = (value) => {
-    setSearch(value)
-    setLoading(true)
-    setLoadError('')
-  }
-  const handlePageChange = (nextPage) => {
-    setPage(nextPage)
-    setLoading(true)
-    setLoadError('')
-  }
   const handleBookmark = () => setToast('Question bookmarks are not available yet. No question was saved.')
 
   const clearAllFilters = () => {
-    setSearch('')
-    setDebouncedSearch('')
+    setSearchDraft(null)
     setDifficulty('')
     setQuestionType('')
     setYear('')
-    setSort('newest')
-    patchQuery({ subject: '', topic: '', subtopic: '', exam: '', section: '', pyq: '' }, true)
-  }
-
-  const handleQuickLink = async (id) => {
-    if (id === 'recent') {
-      clearAllFilters()
-      setToast('Showing the newest published questions.')
-      return
-    }
-    if (id === 'random') {
-      setToast('Finding a random published question…')
-      try {
-        const { count } = await getQuestions({ page: 1, pageSize: 1 })
-        if (!count) {
-          setToast('There are no published questions to open.')
-          return
-        }
-        const randomIndex = Math.floor(Math.random() * count)
-        const result = await getQuestions({ page: randomIndex + 1, pageSize: 1 })
-        if (result.data[0]) navigate(`/questions/${encodeURIComponent(result.data[0].id)}`)
-        else setToast('A question could not be selected. Please try again.')
-      } catch (error) {
-        console.error('Random question lookup failed:', error)
-        setToast('Unable to find a random question right now.')
-      }
-      return
-    }
-    if (id === 'pyqs') {
-      navigate('/pyq')
-      return
-    }
-    if (id === 'important') {
-      setToast('The published question data has no verified “important” classification.')
-      return
-    }
-    if (id === 'attempted') {
-      setToast('Attempt counts are not stored in the published question data.')
-    }
+    setSort('question-number')
+    patchQuery({ subject: '', topic: '', subtopic: '', exam: '', section: '', pyq: '', search: '' }, true)
   }
 
   const totalPages = Math.max(1, Math.ceil(total / QUESTION_PAGE_SIZE))
-  const start = total ? (page - 1) * QUESTION_PAGE_SIZE + 1 : 0
-  const end = Math.min(page * QUESTION_PAGE_SIZE, total)
+  const start = total ? (resultPage - 1) * QUESTION_PAGE_SIZE + 1 : 0
+  const end = Math.min(resultPage * QUESTION_PAGE_SIZE, total)
+  const activeFilterCount = [subject, topic, subtopicId, exam, section, pyq, difficulty, questionType, year].filter(Boolean).length
 
   return (
     <div className="flex min-h-svh flex-col bg-canvas">
       <Navbar />
-      <Container className="pt-4">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-5 pb-14 pt-4 md:px-8">
         <Breadcrumbs items={[{ label: 'Home', href: '/' }, { label: 'Question Bank' }]} />
-      </Container>
-
-      <main className="mx-auto grid w-full max-w-content flex-1 grid-cols-1 items-start gap-5 px-5 pb-12 pt-4 md:px-8 min-[1100px]:grid-cols-[15rem_minmax(0,1fr)_17rem] min-[1100px]:gap-6">
-        <QuestionBankSidebar
-          subjects={subjects}
-          selectedSubjectId={subject}
-          onSubjectSelect={handleSubjectChange}
-          onQuickLink={handleQuickLink}
-          className="order-2 min-[1100px]:order-1 min-[1100px]:col-start-1 min-[1100px]:row-start-1"
-        />
-
-        <section className="order-1 min-w-0 min-[1100px]:order-2 min-[1100px]:col-start-2 min-[1100px]:row-start-1" aria-label="Question list">
-          <QuestionBankHeader search={search} onSearchChange={handleSearchChange} />
-          <div className="mb-4 grid gap-3 sm:grid-cols-2">
-            <label>Examination<input className="w-full rounded border border-line p-2" value={exam} onChange={e => patchQuery({ exam: e.target.value }, true)} /></label>
-            <label>Section<input className="w-full rounded border border-line p-2" value={section} onChange={e => patchQuery({ section: e.target.value }, true)} /></label>
-            <label>Subtopic<select className="w-full rounded border border-line p-2" value={subtopicId} onChange={e => patchQuery({ subtopic: e.target.value })}><option value="">All subtopics</option>{catalog.subtopics.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-            <label><input type="checkbox" checked={pyq} onChange={e => patchQuery({ pyq: e.target.checked ? 'true' : '' })} /> Previous-year questions only</label>
-          </div>
+        <div className="mt-5">
+          <QuestionBankHeader search={search} onSearchChange={(value) => setSearchDraft({ appliedSearch, value })} />
           <QuestionFilters
             subjects={subjects}
             subject={subject}
@@ -207,36 +127,30 @@ export default function QuestionBank() {
             sort={sort}
             onSortChange={(value) => updateFilter(setSort, value)}
             onClear={clearAllFilters}
+            activeFilterCount={activeFilterCount}
           />
+        </div>
 
-          {loadError ? (
-            <div className="rounded-lg border border-danger-border bg-danger-bg p-5" role="alert">
-              <p className="mb-3 text-sm text-danger">{loadError}</p>
-              <Button variant="secondary" onClick={() => {
-                setLoading(true)
-                setLoadError('')
-                setRequestRevision((revision) => revision + 1)
-              }}>Try again</Button>
+        <section aria-label="Question list">
+          {!current ? (
+            <p className="text-sm text-ink-muted" role="status">Loading questions…</p>
+          ) : current.error ? (
+            <div className="rounded-xl border border-danger-border bg-danger-bg p-5" role="alert">
+              <p className="mb-3 text-sm text-danger">{current.error}</p>
+              <Button variant="secondary" onClick={() => setRequestRevision((revision) => revision + 1)}>Try again</Button>
             </div>
+          ) : total === 0 ? (
+            <p className="rounded-xl border border-dashed border-line p-6 text-sm text-ink-muted" role="status">No published questions match these filters. Try clearing a filter or search term.</p>
           ) : (
             <>
               <p className="mb-3 text-xs text-ink-muted" aria-live="polite">
-                {loading ? 'Loading questions…' : total === 0 ? 'No matching questions' : `Showing ${start}–${end} of ${total} published questions`}
+                Showing {start}–{end} of {total} published questions
               </p>
-              {loading && questions.length === 0 ? (
-                <div className="rounded-lg border border-line bg-surface p-6 text-sm text-ink-muted" role="status">Loading published questions…</div>
-              ) : total === 0 ? (
-                <div className="rounded-lg border border-line bg-surface p-6 text-sm text-ink-muted">No published questions match these filters. Try clearing a filter or search term.</div>
-              ) : (
-                <>
-                  <QuestionList questions={questions} pageStartIndex={start} onBookmark={handleBookmark} />
-                  <Pagination page={page} totalPages={totalPages} start={start} end={end} totalLabel={String(total)} onPageChange={handlePageChange} />
-                </>
-              )}
+              <QuestionList questions={current.data.data.map(normalizeQuestion)} pageStartIndex={start} onBookmark={handleBookmark} />
+              <Pagination page={resultPage} totalPages={totalPages} start={start} end={end} totalLabel={String(total)} onPageChange={setPage} />
             </>
           )}
         </section>
-
       </main>
       <Footer />
       <Toast message={toast} onDismiss={() => setToast('')} />

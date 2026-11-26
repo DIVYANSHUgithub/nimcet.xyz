@@ -5,6 +5,7 @@ import hmac
 import json
 from uuid import UUID, uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.api import dependencies
@@ -69,11 +70,12 @@ class Gateway:
         return {**PAYMENT, "status": self.payment_status}
 
 
-def build(monkeypatch):
+def build(monkeypatch, *, payments_enabled=True):
     monkeypatch.setattr(dependencies, "claim_device", lambda *args, **kwargs: None)
     identity = Verifier()
     app = create_app(Settings(
-        _env_file=None, environment="development", payments_enabled=True, test_engine_enabled=True,
+        _env_file=None, environment="development", payments_enabled=payments_enabled, test_engine_enabled=True,
+        device_sessions_enabled=True,
         admin_workflows_enabled=True, trusted_role_lookup_enabled=True, razorpay_key_id="rzp_test_demo",
         razorpay_key_secret=KEY_SECRET, razorpay_webhook_secret=WEBHOOK_SECRET,
     ), token_verifier=identity, role_resolver=identity)
@@ -194,23 +196,42 @@ def test_webhook_checks_raw_signature_and_preserves_gateway_event_id(monkeypatch
     assert repository.captures[0][1]["confirmed_at"] == datetime.fromtimestamp(1795200007, UTC)
 
 
-def test_explicit_same_type_device_takeover(monkeypatch):
-    client, _, _ = build(monkeypatch)
-    attempts = []
+@pytest.mark.parametrize("roles", [frozenset({"student"}), frozenset({"administrator"})])
+def test_sign_in_replaces_same_type_even_without_payments(monkeypatch, roles):
+    client, _, _ = build(monkeypatch, payments_enabled=False)
+    first_desktop, phone, second_desktop = [uuid4() for _ in range(3)]
+    sessions = {"first": first_desktop, "phone": phone, "second": second_desktop}
+    session_order = {session_id: index for index, session_id in enumerate(sessions.values())}
+    slots = {}
 
-    def claim(_db, _user, session_id, kind, *, replace):
-        attempts.append((session_id, kind, replace))
-        if not replace:
+    def verify(_self, token):
+        return VerifiedIdentity(subject=BUYER, issuer="test", audience="authenticated", session_id=sessions[token])
+
+    def claim(_db, user_id, session_id, kind, *, replace):
+        key = (user_id, kind)
+        current = slots.get(key)
+        if current and current != session_id and (not replace or session_order[current] > session_order[session_id]):
             raise DeviceConflict
+        slots[key] = session_id
 
+    monkeypatch.setattr(Verifier, "verify", verify)
+    monkeypatch.setattr(Verifier, "roles_for", lambda _self, _identity: roles)
     monkeypatch.setattr(dependencies, "claim_device", claim)
-    auth = {"Authorization": "Bearer buyer", "User-Agent": "Mozilla/5.0 (iPhone)"}
-    response = client.get("/api/v1/payments/pass", headers=auth)
+    first = {"Authorization": "Bearer first", "User-Agent": "Mozilla/5.0 (Windows NT 10.0)"}
+    second = {**first, "Authorization": "Bearer second"}
+    mobile = {"Authorization": "Bearer phone", "User-Agent": "Mozilla/5.0 (iPhone)"}
+    path = "/api/v1/auth/device"
+    assert client.post(path, headers=first).status_code == 200
+    assert client.post(path, headers=mobile).status_code == 200
+    assert client.post(path, headers=second).status_code == 200
+
+    response = client.get(path, headers=first)
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "device_slot_conflict"
-    assert client.post("/api/v1/auth/device", headers=auth, json={"replace": True}).status_code == 200
-    assert attempts[0][0] == attempts[1][0]
-    assert [attempt[1:] for attempt in attempts] == [("mobile", False), ("mobile", True)]
+    assert client.get("/api/v1/students/me/attempts", headers=first).status_code == 409
+    assert client.post(path, headers=first).status_code == 409
+    assert client.get(path, headers=second).status_code == 200
+    assert client.get(path, headers=mobile).status_code == 200
 
 
 def test_captured_order_status_respects_cutoff_expiry_and_refunds():

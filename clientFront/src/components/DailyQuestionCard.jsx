@@ -1,26 +1,63 @@
+import { ArrowRight, CircleCheck, CircleX } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import RichContent from './RichContent'
 import Badge from './ui/Badge'
+import Button from './ui/Button'
+import QuestionOption, { OptionGrid } from './ui/QuestionOption'
 import { difficultyTone } from '../utils/difficultyTone'
 import { QuestionMedia, QuestionOptionContent } from './ui/QuestionMedia'
 
-export default function DailyQuestionCard({ question, index, total }) {
-  const { id, difficulty, question: prompt, questionImageUrl, options = [] } = question
+const feedback = {
+  correct: { label: 'Correct', color: 'text-success', Icon: CircleCheck },
+  incorrect: { label: 'Incorrect', color: 'text-danger', Icon: CircleX },
+  unavailable: { label: 'Answer unavailable', color: 'text-ink-muted' },
+  unanswered: { label: 'Skipped', color: 'text-ink-muted' },
+}
+
+export default function DailyQuestionCard({ question, index, total, selectedOptionId, onSelect, locked, result }) {
+  const { id, difficulty, question: prompt, questionImageUrl, statementBlocks, options, optionIds } = question
+  const resultState = result === true ? 'correct' : result === false ? 'incorrect' : undefined
+  const feedbackState = feedback[resultState ?? (result === null ? 'unavailable' : result)]
+  const titleId = `daily-question-${id}`
 
   return (
-    <article className="overflow-hidden rounded-xl border border-line bg-surface">
-      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
-        <div className="min-w-0 flex-1">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Question {index + 1} of {total}</span>
-            <Badge tone={difficultyTone(difficulty)}>{difficulty || 'Difficulty not provided'}</Badge>
-          </div>
-          <div className="mb-3 break-words text-sm font-medium leading-6 text-ink-heading">{question.statementBlocks?.length ? <RichContent blocks={question.statementBlocks} /> : <QuestionMedia text={prompt} imageUrl={questionImageUrl} />}</div>
-          <ol className="grid grid-cols-1 gap-2 min-[480px]:grid-cols-2" aria-label="Answer options">
-            {options.map((option, optionIndex) => <li key={`${id}-option-${optionIndex}`} className="min-w-0 rounded-md border border-line bg-canvas-muted/50 px-3 py-2 text-sm leading-6 text-ink"><span className="mr-2 font-semibold text-ink-muted">{String.fromCharCode(65 + optionIndex)}.</span><QuestionOptionContent option={option} /></li>)}
-          </ol>
-        </div>
-        <Link to={`/questions/${encodeURIComponent(id)}`} className="inline-flex min-h-10 shrink-0 items-center rounded-md border border-line-strong px-3 text-sm font-medium text-ink-heading">Practice question</Link>
+    <article className="min-w-0 rounded-xl border border-line bg-surface p-4 shadow-card sm:p-6" aria-labelledby={titleId}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 id={titleId} className="text-sm font-semibold text-ink-muted">Question {index + 1} of {total}</h3>
+        {difficulty && <Badge tone={difficultyTone(difficulty)}>{difficulty}</Badge>}
+      </div>
+      <div className="mb-4 break-words text-base font-medium leading-7 text-ink-heading">
+        {statementBlocks.length ? <RichContent blocks={statementBlocks} /> : <QuestionMedia text={prompt} imageUrl={questionImageUrl} />}
+      </div>
+      <fieldset disabled={locked} className="min-w-0" aria-labelledby={titleId}>
+        <OptionGrid>
+          {options.map((option, optionIndex) => {
+            const optionId = optionIds[optionIndex]
+            const selected = selectedOptionId === optionId
+            const letter = String.fromCharCode(65 + optionIndex)
+
+            return (
+              <QuestionOption key={optionId} as="label" letter={letter} interactive={!locked}
+                selected={selected && !resultState} state={selected ? resultState : undefined}>
+                <input className="sr-only" type="radio" name={titleId} value={optionId} checked={selected} onChange={() => onSelect(optionId)} />
+                <span className="sr-only">{letter}. </span>
+                <QuestionOptionContent option={option} />
+              </QuestionOption>
+            )
+          })}
+        </OptionGrid>
+      </fieldset>
+      <div className="mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-line pt-3">
+        {feedbackState && (
+          <p className={`mr-auto flex items-center gap-1.5 text-sm font-semibold ${feedbackState.color}`}>
+            {feedbackState.Icon && <feedbackState.Icon size={16} aria-hidden="true" />}
+            {feedbackState.label}
+          </p>
+        )}
+        <Button as={Link} variant="monochrome" to={`/questions/${encodeURIComponent(id)}?answer=show`} state={{ selectedOptionId }}
+          aria-label={`View answer for question ${index + 1}`}>
+          View answer <ArrowRight size={16} aria-hidden="true" />
+        </Button>
       </div>
     </article>
   )

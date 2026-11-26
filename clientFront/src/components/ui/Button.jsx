@@ -9,6 +9,8 @@ const variants = {
     'border-line-strong bg-transparent text-ink-heading hover:bg-canvas-muted focus-visible:outline-brand',
   inverse:
     'border-white bg-white text-black hover:border-neutral-200 hover:bg-neutral-200 focus-visible:outline-white',
+  monochrome:
+    'border-black bg-black text-white hover:border-neutral-800 hover:bg-neutral-800 focus-visible:outline-brand dark:border-white dark:bg-white dark:text-black dark:hover:border-neutral-200 dark:hover:bg-neutral-200',
 }
 
 const sizes = {

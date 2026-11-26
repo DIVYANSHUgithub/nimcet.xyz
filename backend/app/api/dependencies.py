@@ -11,7 +11,7 @@ from app.core.security import (
 )
 from app.db.roles import RoleStorageUnavailable, AccountSuspended
 from app.db.database import DatabaseUnavailable
-from app.db.pass_devices import DeviceConflict, claim_device, device_type
+from app.db.pass_devices import DeviceConflict, DeviceSessionExpired, claim_device, device_type
 from starlette.concurrency import run_in_threadpool
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -64,7 +64,7 @@ async def get_authenticated_principal(
 
 
 def enforce_student_device(request: Request, principal: Principal, *, replace: bool = False):
-    if not request.app.state.settings.payments_enabled or principal.roles - {"student"}:
+    if not request.app.state.settings.enforce_device_sessions:
         return
     if principal.session_id is None:
         raise HTTPException(401, detail={"code": "device_session_required", "message": "Sign in again to verify this device."})
@@ -73,7 +73,11 @@ def enforce_student_device(request: Request, principal: Principal, *, replace: b
         claim_device(request.app.state.database, principal.user_id, principal.session_id, kind, replace=replace)
     except DeviceConflict:
         raise HTTPException(409, detail={
-            "code": "device_slot_conflict", "message": f"Another {kind} session is registered to your account."
+            "code": "device_slot_conflict", "message": "You were signed out because your account signed in on another device of the same type."
+        }) from None
+    except DeviceSessionExpired:
+        raise HTTPException(401, detail={
+            "code": "device_session_required", "message": "Your sign-in has expired. Please sign in again."
         }) from None
     except DatabaseUnavailable:
         raise HTTPException(503, detail={
@@ -94,11 +98,12 @@ async def get_optional_principal(
 ) -> Principal | None:
     if credentials is None:
         return None
-    return await get_authenticated_principal(request, credentials)
+    principal = await get_authenticated_principal(request, credentials)
+    return await get_current_principal(request, principal)
 
 
 def require_roles(*required: str) -> Callable:
-    async def dependency(principal: Principal = Depends(get_current_principal)) -> Principal:
+    async def dependency(principal: Principal = Depends(get_authenticated_principal)) -> Principal:
         if not required or not principal.roles.intersection(required):
             raise HTTPException(
                 status_code=403,

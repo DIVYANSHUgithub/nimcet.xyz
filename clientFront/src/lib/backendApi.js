@@ -24,7 +24,7 @@ export function createBackendApi({
 } = {}) {
   const apiBaseUrl = String(baseUrl ?? '').trim().replace(/\/+$/, '')
 
-  return async function backendRequest(path, { params = {}, signal, method = 'GET', body, rawBody, contentType, responseType = 'json' } = {}) {
+  return async function backendRequest(path, { params = {}, signal, method = 'GET', body, rawBody, contentType, responseType = 'json', accessToken } = {}) {
     if (!apiBaseUrl) {
       throw new ApiRequestError('The NIMCET API is not configured for this deployment.', { code: 'api_not_configured' })
     }
@@ -39,7 +39,7 @@ export function createBackendApi({
       if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value))
     }
 
-    const token = await getToken()
+    const token = accessToken ?? await getToken()
     const headers = { Accept: 'application/json' }
     if (token) headers.Authorization = `Bearer ${token}`
     if (body !== undefined) headers['Content-Type'] = 'application/json'

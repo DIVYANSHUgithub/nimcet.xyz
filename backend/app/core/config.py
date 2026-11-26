@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     question_authoring_enabled: bool = False
     phase5_enabled: bool = False
     admin_workflows_enabled: bool = False
+    device_sessions_enabled: bool | None = None
     payments_enabled: bool = False
     payments_checkout_enabled: bool = True
     razorpay_key_id: str | None = None
@@ -46,6 +47,12 @@ class Settings(BaseSettings):
     supabase_storage_key: SecretStr | None = None
 
     cors_allowed_origins: str = "http://localhost:5173"
+
+    @property
+    def enforce_device_sessions(self) -> bool:
+        if self.device_sessions_enabled is not None:
+            return self.device_sessions_enabled
+        return self.environment == "production" or self.payments_enabled
 
     @property
     def payment_admin_configured(self) -> bool:

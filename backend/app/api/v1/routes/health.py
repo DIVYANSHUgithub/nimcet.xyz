@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 
+from app.db.pass_devices import device_sessions_ready
+
 router = APIRouter()
 
 
@@ -17,7 +19,10 @@ def readiness(request: Request) -> dict[str, str]:
     payments_ready = not settings.payments_enabled or (
         database_ready and settings.payments_configured and request.app.state.payment_repository.ready()
     )
-    if not database_ready or not auth_ready or not authorization_ready or not payments_ready:
+    sessions_ready = not settings.enforce_device_sessions or (
+        database_ready and device_sessions_ready(request.app.state.database)
+    )
+    if not database_ready or not auth_ready or not authorization_ready or not payments_ready or not sessions_ready:
         raise HTTPException(
             status_code=503,
             detail={"code": "not_ready", "message": "Required backend dependencies are not ready."},

@@ -8,8 +8,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, R
 from pydantic import AwareDatetime, BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from app.api.dependencies import (enforce_student_device, get_authenticated_principal,
-                                  get_current_principal, get_optional_principal, require_roles)
+from app.api.dependencies import get_current_principal, get_optional_principal, require_roles
 from app.db.database import DatabaseUnavailable
 from app.db.payments import CheckoutRepriceRequired, PaymentError
 from app.services.pass_payments import full_refund, reconcile_order, sync_order_payments
@@ -86,24 +85,12 @@ class TestAccess(BaseModel):
     pass_required: bool
 
 
-class DeviceReplacement(BaseModel):
-    replace: bool = False
-
-
-@router.post("/auth/device")
-def replace_device(payload: DeviceReplacement, request: Request, principal=Depends(get_authenticated_principal)):
-    enforce_student_device(request, principal, replace=payload.replace)
-    return {"registered": True}
-
-
 @router.get("/payments/pass")
 def summary(request: Request, response: Response, principal=Depends(get_optional_principal)):
     response.headers["Cache-Control"] = "private, no-store"
     if not request.app.state.settings.payments_enabled:
         return {"enabled": False}
     repository, _ = configured(request)
-    if principal:
-        enforce_student_device(request, principal)
     return execute(lambda: pass_summary(request, repository, principal))
 
 

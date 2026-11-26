@@ -153,12 +153,13 @@ function createSeededRandom(seed) {
   }
 }
 
-export async function getRandomMathematicsQuestions(limit = 10, { signal, seed = `${Date.now()}-${Math.random()}` } = {}) {
+export async function getRandomMathematicsQuestions(limit = 10, { signal, seed = `${Date.now()}-${Math.random()}`, questionType } = {}) {
   const safeLimit = Math.max(1, Math.floor(Number(limit) || 10))
+  const filters = { subject: 'Mathematics', questionType }
   const { count } = await getQuestions({
     page: 1,
     pageSize: 1,
-    filters: { subject: 'Mathematics' },
+    filters,
     signal,
   })
   const sampleSize = Math.min(safeLimit, count)
@@ -172,7 +173,7 @@ export async function getRandomMathematicsQuestions(limit = 10, { signal, seed =
     const result = await getQuestions({
       page: index + 1,
       pageSize: 1,
-      filters: { subject: 'Mathematics' },
+      filters,
       signal,
     })
     return result.data[0]
@@ -233,9 +234,9 @@ export function submitPracticeAnswer(id, optionId, revision = 0) {
   })
 }
 
-export function checkDailyChallengeAnswer(id, optionId, revision) {
+export function checkDailyChallengeAnswer(id, optionId, revision, { signal } = {}) {
   return backendRequest(`questions/${encodeURIComponent(id)}/daily-challenge/check`, {
-    method: 'POST', body: { option_id: optionId, expected_revision: revision },
+    method: 'POST', signal, body: { option_id: optionId, expected_revision: revision },
   })
 }
 
