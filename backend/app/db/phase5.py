@@ -15,6 +15,7 @@ PAPER_QUESTIONS_SQL = (
     "(to_jsonb(s)->>'duration_seconds')::integer AS section_duration_seconds,"
     'q.question_snapshot,q.options_snapshot,q.correct_option_snapshot,q.explanation_snapshot,'
     "(to_jsonb(q)->>'alternate_correct_option_snapshot')::integer AS alternate_correct_option_snapshot,"
+    "NULLIF((to_jsonb(q)->>'automatic_full_credit')::boolean, false) AS automatic_full_credit,"
     "to_jsonb(q)->'question_blocks_snapshot' AS question_blocks_snapshot,"
     "to_jsonb(q)->'explanation_blocks_snapshot' AS explanation_blocks_snapshot,"
     'COALESCE(q.marks,s.default_marks) AS marks,COALESCE(q.negative_marks,s.default_negative_marks) AS negative_marks '
@@ -29,7 +30,7 @@ PUBLIC_PAPER_CONDITION = (
 
 def paper_snapshot_digest(version, rows):
     configuration = {key:version[key] for key in ['examination_code','duration_seconds','shuffle_questions','shuffle_options']}
-    optional_keys = {'section_duration_seconds', 'alternate_correct_option_snapshot'}
+    optional_keys = {'section_duration_seconds', 'alternate_correct_option_snapshot', 'automatic_full_credit'}
     questions = [{key: value for key, value in row.items()
                   if key not in optional_keys or value is not None} for row in rows]
     serialized=json.dumps({'configuration':configuration,'questions':questions},sort_keys=True,default=str,separators=(',',':'))

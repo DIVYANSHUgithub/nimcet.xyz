@@ -274,6 +274,7 @@ class AttemptReviewQuestion(BaseModel):
     selected_option_id: str | None
     correct_option_id: str
     alternate_correct_option_id: str | None = None
+    automatic_full_credit: bool = False
     is_correct: bool
     explanation: str | None = None
     marks_awarded: Decimal

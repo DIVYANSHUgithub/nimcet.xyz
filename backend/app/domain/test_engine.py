@@ -38,6 +38,7 @@ class QuestionSnapshot:
     option_order: tuple[int, ...]
     statement_blocks: tuple[Any, ...] = ()
     alternate_correct_option: int | None = None
+    automatic_full_credit: bool = False
 
 
 def ensure_test_eligible(
@@ -218,6 +219,13 @@ def evaluate_attempt(
         maximum_score += question.marks
         section["maximum_score"] += question.marks
         selected = answers.get(question.attempt_question_id)
+        if question.automatic_full_credit:
+            score += question.marks
+            section["score"] += question.marks
+            outcome = "unanswered" if selected is None else "correct"
+            counts[outcome] += 1
+            section[outcome] += 1
+            continue
         if selected is None:
             counts["unanswered"] += 1
             section["unanswered"] += 1

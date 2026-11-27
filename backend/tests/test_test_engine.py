@@ -219,6 +219,17 @@ def test_verified_alternative_earns_full_marks(option):
     assert result['correct'] == 1
 
 
+@pytest.mark.parametrize('option', [None, 'option-0', 'option-1', 'option-2', 'option-3'])
+def test_withdrawn_question_earns_full_marks_for_every_response(option):
+    question = _question(automatic_full_credit=True)
+    result = evaluate_attempt(questions=[question], answers={question.attempt_question_id: option})
+    assert result['score'] == result['maximum_score'] == question.marks
+    assert result['sections'][0]['score'] == question.marks
+    assert result['correct'] == int(option is not None)
+    assert result['incorrect'] == 0
+    assert result['unanswered'] == int(option is None)
+
+
 def test_answer_write_rejects_wrong_owner_state_deadline_and_option():
     validate_answer_write(
         status="in_progress",

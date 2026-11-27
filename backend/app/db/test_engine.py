@@ -198,6 +198,7 @@ class TestEngineRepository:
                     "SELECT aq.display_order,ts.title AS section_title,tq.question_snapshot,tq.options_snapshot,"
                     "tq.correct_option_snapshot,tq.explanation_snapshot,aq.option_order,aa.selected_option_id,"
                     "(to_jsonb(tq)->>'alternate_correct_option_snapshot')::integer AS alternate_correct_option_snapshot,"
+                    "(to_jsonb(tq)->>'automatic_full_credit')::boolean AS automatic_full_credit,"
                     "to_jsonb(tq)->'question_blocks_snapshot' AS question_blocks_snapshot,"
                     "to_jsonb(tq)->'explanation_blocks_snapshot' AS explanation_blocks_snapshot,"
                     "COALESCE(tq.marks,ts.default_marks) AS marks,"
@@ -225,10 +226,11 @@ class TestEngineRepository:
             correct_id = f"option-{int(item['correct_option_snapshot'])}"
             alternate = item.get('alternate_correct_option_snapshot')
             alternate_id = f'option-{alternate}' if alternate is not None else None
-            is_correct = selected is not None and selected in (correct_id, alternate_id)
+            automatic_full_credit = bool(item.get("automatic_full_credit"))
+            is_correct = selected is not None and (automatic_full_credit or selected in (correct_id, alternate_id))
             marks = Decimal(str(item["marks"]))
             negative = Decimal(str(item["negative_marks"]))
-            earned = Decimal("0") if selected is None else (marks if is_correct else -negative)
+            earned = marks if automatic_full_credit or is_correct else (Decimal("0") if selected is None else -negative)
             questions.append({
                 "display_order": int(item["display_order"]),
                 "section_title": item["section_title"],
@@ -242,6 +244,7 @@ class TestEngineRepository:
                 "selected_option_id": selected,
                 "correct_option_id": correct_id,
                 "alternate_correct_option_id": alternate_id,
+                "automatic_full_credit": automatic_full_credit,
                 "is_correct": is_correct,
                 "explanation": item["explanation_snapshot"],
                 "marks_awarded": earned,
@@ -779,6 +782,7 @@ class TestEngineRepository:
                     "SELECT aq.id AS attempt_question_id, ts.id AS section_id, ts.title AS section_title, "
                     "tq.correct_option_snapshot, COALESCE(tq.marks,ts.default_marks) AS marks, "
                     "(to_jsonb(tq)->>'alternate_correct_option_snapshot')::integer AS alternate_correct_option_snapshot, "
+                    "(to_jsonb(tq)->>'automatic_full_credit')::boolean AS automatic_full_credit, "
                     "COALESCE(tq.negative_marks,ts.default_negative_marks) AS negative_marks, "
                     "aa.selected_option_id "
                     "FROM public.attempt_questions AS aq "
@@ -800,6 +804,7 @@ class TestEngineRepository:
                     options=("", "", "", ""),
                     correct_option=int(row["correct_option_snapshot"]),
                     alternate_correct_option=row.get('alternate_correct_option_snapshot'),
+                    automatic_full_credit=bool(row.get("automatic_full_credit")),
                     marks=Decimal(str(row["marks"])),
                     negative_marks=Decimal(str(row["negative_marks"])),
                     option_order=(0, 1, 2, 3),
