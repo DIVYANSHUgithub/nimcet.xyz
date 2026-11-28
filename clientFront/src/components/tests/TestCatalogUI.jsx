@@ -64,6 +64,7 @@ export function TestCatalogGrid({ loading = false, children }) {
 }
 
 export function TestCatalogCard({ test, category, signedIn, signIn, busy, opening, onOpen, allowResumeOutsideWindow = false, children }) {
+  const locked = test.locked
   const state = scheduleState(test, allowResumeOutsideWindow)
   const attempts = Math.max(0, test.attempt_limit - test.attempts_used)
   const availability = signedIn ? `${attempts} attempt${attempts === 1 ? '' : 's'} available` : 'Open'
@@ -72,21 +73,38 @@ export function TestCatalogCard({ test, category, signedIn, signIn, busy, openin
     <article className="flex min-h-64 min-w-0 flex-col rounded-2xl border border-line bg-surface p-5 shadow-card transition-shadow hover:shadow-raised">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <span className="rounded-full bg-canvas-subtle px-3 py-1 text-xs font-semibold text-ink-muted">{category}</span>
-        <span className="text-xs font-medium text-ink-muted">{test.pass_required ? 'Student Pass' : test.examination_code}</span>
+        <span className={locked ? 'rounded-full bg-info-bg px-3 py-1 text-xs font-semibold text-info' : 'text-xs font-medium text-ink-muted'}>
+          {test.pass_required ? 'Student Pass' : test.examination_code}
+        </span>
       </div>
-      <h2 className="mt-4 text-lg font-semibold leading-6 text-ink-heading">{test.title}</h2>
-      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-ink-muted">
-        <span className="inline-flex items-center gap-1.5"><FileQuestion size={15} aria-hidden="true" />{test.question_count} question{test.question_count === 1 ? '' : 's'}</span>
-        <span className="inline-flex items-center gap-1.5"><Clock3 size={15} aria-hidden="true" />{formatDuration(test.duration_seconds)}</span>
+      <div className={`mt-4 ${locked ? 'relative grid min-h-26 items-center overflow-hidden rounded-xl bg-canvas-muted' : ''}`}>
+        <div className={locked ? 'select-none px-4 py-3 opacity-50 blur-[6px]' : undefined}>
+          <h2 className="text-lg font-semibold leading-6 text-ink-heading">{test.title}</h2>
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-ink-muted">
+            <span className="inline-flex items-center gap-1.5"><FileQuestion size={15} aria-hidden="true" />{test.question_count} question{test.question_count === 1 ? '' : 's'}</span>
+            <span className="inline-flex items-center gap-1.5"><Clock3 size={15} aria-hidden="true" />{formatDuration(test.duration_seconds)}</span>
+          </div>
+        </div>
+        {locked && (
+          <div className="absolute inset-0 grid place-items-center p-2">
+            <div className="inline-flex items-center gap-2.5 rounded-full border border-line bg-surface py-1.5 pr-4 pl-1.5 text-sm font-semibold text-ink-heading shadow-raised">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-info-bg text-info">
+                <LockKeyhole size={16} aria-hidden="true" />
+              </span>
+              Test locked
+            </div>
+          </div>
+        )}
       </div>
-      {children}
+      {!locked && children}
       <div className="mt-auto pt-5">
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
-          <span className={`min-w-0 break-words text-xs font-medium ${state.disabled ? 'text-ink-muted' : state.resume ? 'text-accent' : 'text-success'}`}>
-            {test.locked ? <span className="inline-flex items-center gap-1"><LockKeyhole size={14} aria-hidden="true" /> Pass required</span>
-              : state.resume ? 'Attempt in progress' : state.disabled ? state.label : availability}
-          </span>
-          {test.locked ? <Button as={Link} size="sm" to="/student-pass">Buy Pass <ArrowRight size={15} aria-hidden="true" /></Button>
+          {!locked && (
+            <span className={`min-w-0 break-words text-xs font-medium ${state.disabled ? 'text-ink-muted' : state.resume ? 'text-accent' : 'text-success'}`}>
+              {state.resume ? 'Attempt in progress' : state.disabled ? state.label : availability}
+            </span>
+          )}
+          {locked ? <Button as={Link} size="sm" to="/student-pass" full>Buy Pass <ArrowRight size={15} aria-hidden="true" /></Button>
             : !signedIn && !state.disabled
             ? <Button as={Link} size="sm" to={signIn}>Sign in to start <ArrowRight size={15} aria-hidden="true" /></Button>
             : <Button size="sm" className="max-w-full whitespace-normal text-left" disabled={state.disabled || busy} onClick={onOpen}>

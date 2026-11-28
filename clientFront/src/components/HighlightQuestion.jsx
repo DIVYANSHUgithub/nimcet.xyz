@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { checkDailyChallengeAnswer, getRandomMathematicsQuestions, submitDailyChallengeAnswer } from '../lib/questionsApi'
 import { normalizeQuestion } from '../utils/normalizeQuestion'
@@ -71,8 +71,15 @@ export default function HighlightQuestion() {
   }
   return (
     <>
-      <article className="rounded-xl border border-line bg-surface p-5 shadow-card sm:p-6">
-        {!requestCurrent ? <p className="text-sm text-ink-muted" role="status">Loading a published question…</p> : request.error ? <p className="text-sm text-danger" role="alert">{request.error}</p> : !question ? <p className="text-sm text-ink-muted">No published questions are available yet.</p> : (
+      <article className="flex min-h-80 flex-col rounded-xl border border-line bg-surface p-5 shadow-card sm:min-h-84 sm:p-6">
+        {!requestCurrent ? (
+          <div className="my-auto flex flex-col items-center gap-3 text-center text-sm font-semibold text-ink-heading" role="status">
+            <span className="grid size-14 place-items-center rounded-full bg-info-bg text-accent" aria-hidden="true">
+              <LoaderCircle size={28} className="motion-safe:animate-spin" />
+            </span>
+            Loading today’s question…
+          </div>
+        ) : request.error ? <p className="text-sm text-danger" role="alert">{request.error}</p> : !question ? <p className="text-sm text-ink-muted">No published questions are available yet.</p> : (
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
@@ -100,7 +107,7 @@ export default function HighlightQuestion() {
                 {isCorrect ? 'Correct' : 'Incorrect'}
               </p>}
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-auto flex flex-wrap gap-2 pt-4">
               <Button as={Link} to={`/questions/${encodeURIComponent(question.id)}?answer=show`} state={{ selectedOptionId }}>
                 View answer <ArrowRight size={16} aria-hidden="true" />
               </Button>
