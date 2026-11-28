@@ -13,13 +13,20 @@
     }
   ],
   "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/about-nimcet", "destination": "/about-nimcet.html" },
+    { "source": "/nimcet-2027", "destination": "/nimcet-2027.html" },
+    { "source": "/nimcet-2026", "destination": "/nimcet-2026.html" },
+    { "source": "/questions", "destination": "/questions.html" },
+    { "source": "/pyq", "destination": "/pyq.html" },
+    { "source": "/tests", "destination": "/tests.html" },
     { "source": "/about", "destination": "/about.html" },
     { "source": "/privacy-policy", "destination": "/privacy-policy.html" },
     { "source": "/terms", "destination": "/terms.html" },
     { "source": "/contact", "destination": "/contact.html" },
     {
       "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": "/app-shell.html"
     }
   ]
 }

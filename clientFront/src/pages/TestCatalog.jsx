@@ -120,7 +120,7 @@ function TestCatalogPage() {
       <main className="mx-auto w-full max-w-6xl flex-1 px-5 pb-14 pt-10 md:px-8 md:pt-14">
         <TestCatalogIntro
           eyebrow="Practice with purpose"
-          title="Tests & mock exams"
+          title="NIMCET test series and mock exams"
           description="Build confidence with timed NIMCET practice. Your answers save as you go, so you can safely resume an active attempt."
         />
 
@@ -151,6 +151,13 @@ function TestCatalogPage() {
         )}
 
         {response.has_more && <div className="mt-8 flex justify-center"><Button variant="secondary" disabled={loading} onClick={() => setResponse((current) => ({ ...current, page: current.page + 1 }))}>Load more tests</Button></div>}
+        <section className="mt-10 border-t border-line pt-5" aria-labelledby="test-practice-heading">
+          <h2 id="test-practice-heading" className="text-lg font-semibold text-ink-heading">Choose your next NIMCET test</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-muted">
+            Use a full-length mock to practise pacing across sections, or choose a shorter test to focus on a weak area.
+            To practise with an earlier exam, browse the <Link to="/pyq?view=tests" className="font-semibold text-accent underline underline-offset-4">free timed NIMCET past papers</Link>.
+          </p>
+        </section>
       </main>
       <Footer />
     </div>

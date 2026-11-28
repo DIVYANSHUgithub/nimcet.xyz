@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
-import { pageTitle } from '../lib/navigation'
+import { pageDocumentTitle } from '../lib/navigation'
 import PageLoading from './PageLoading'
+import SearchMetadata from './SearchMetadata'
 
 export function RequireSession({ children }) {
   const { user, loading } = useAuth()
@@ -23,7 +24,7 @@ export function SignedOutOnly({ children, authPending = false }) {
 export function RouteAccessibility() {
   const { pathname } = useLocation()
   useEffect(() => {
-    document.title = `${pageTitle(pathname)} — NIMCET.XYZ`
+    document.title = pageDocumentTitle(pathname)
     let focused = null
     function focusContent() {
       const main = document.querySelector('main')
@@ -39,5 +40,8 @@ export function RouteAccessibility() {
     observer.observe(document.getElementById('root'), { childList: true, subtree: true })
     return () => observer.disconnect()
   }, [pathname])
-  return <a className="skip-link" href="#main-content">Skip to main content</a>
+  return <>
+    <SearchMetadata pathname={pathname} />
+    <a className="skip-link" href="#main-content">Skip to main content</a>
+  </>
 }

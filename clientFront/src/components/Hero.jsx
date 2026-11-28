@@ -484,7 +484,7 @@ export default function Hero() {
     <section className="relative overflow-hidden bg-canvas">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_85%,rgba(99,102,241,0.07),transparent_34%),radial-gradient(ellipse_at_85%_75%,rgba(56,189,248,0.08),transparent_34%)] dark:hidden" />
 
-      <Container className="relative grid items-start gap-12 pb-8 pt-14 sm:pt-16 lg:grid-cols-[1.02fr_0.98fr] lg:gap-14 lg:pt-20">
+      <Container className="relative grid items-start gap-12 pb-8 pt-3 lg:grid-cols-[1.02fr_0.98fr] lg:gap-14">
         <div className="min-w-0">
           <p className="text-xs font-bold tracking-[0.16em] text-accent sm:text-sm">
             YOUR NIMCET PREPARATION PARTNER

@@ -10,6 +10,14 @@ import Footer from '../components/Footer'
 import Button from '../components/ui/Button'
 import Container from '../components/ui/Container'
 import { useQuestionFacets } from '../hooks/useQuestionFacets'
+import { legalDetails } from '../lib/legal'
+
+const siteSchema = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'NIMCET.XYZ',
+  url: `${legalDetails.origin}/`,
+})
 
 function TestPromoCard({ id, title, description, to, buttonLabel, icon: Icon }) {
   return (
@@ -38,22 +46,30 @@ export default function Home() {
     <div className="flex min-h-svh flex-col">
       <Navbar />
       <main className="flex-1">
+        <Container>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-lg bg-[radial-gradient(ellipse_at_28%_25%,rgb(125_211_252_/_0.4),transparent_65%),radial-gradient(ellipse_at_72%_70%,rgb(196_181_253_/_0.45),transparent_65%)] px-3 py-1 dark:bg-[radial-gradient(ellipse_at_28%_25%,rgb(14_116_144_/_0.35),transparent_65%),radial-gradient(ellipse_at_72%_70%,rgb(109_40_217_/_0.35),transparent_65%)]">
+            <span className="text-sm font-semibold text-ink-heading">About the NIMCET exam</span>
+            <Button as={Link} to="/about-nimcet" size="sm" variant="monochrome" aria-label="Click here to learn about the NIMCET exam">
+              Click here
+            </Button>
+          </div>
+        </Container>
         <Hero topics={featuredTopics} searchableItems={searchableItems} />
         <Container className="grid gap-2 pt-4 sm:pt-6 md:grid-cols-2 md:gap-3">
           <TestPromoCard
             id="home-pyq-tests-title"
-            title="Previous-Year Papers"
+            title="Previous-year papers"
             description="Take past NIMCET papers as free timed tests."
             to="/pyq?view=tests"
-            buttonLabel="FREE PYQ TEST"
+            buttonLabel="Take a past paper"
             icon={FileText}
           />
           <TestPromoCard
             id="home-tests-title"
-            title="NIMCET Practice Tests"
-            description="NIMCET is all about timed mock tests pratice."
+            title="NIMCET mock tests"
+            description="Build exam pacing with timed practice."
             to="/tests"
-            buttonLabel="Practice Tests"
+            buttonLabel="Browse mock tests"
             icon={ClipboardList}
           />
         </Container>
@@ -67,8 +83,19 @@ export default function Home() {
         </section>
         <DailyQuestions />
         <PracticeCTA />
+        <section aria-labelledby="exam-resources-title" className="border-t border-line bg-surface py-8 sm:py-10">
+          <Container>
+            <h2 id="exam-resources-title" className="text-xl font-bold text-ink-heading">About the NIMCET exam</h2>
+            <p className="mt-2 max-w-3xl text-base text-ink-muted">
+              NIMCET is the NIT MCA Common Entrance Test for admission to MCA programmes at participating institutes.
+              See the <Link to="/about-nimcet" className="font-semibold text-accent underline underline-offset-4">NIMCET exam guide</Link> for the syllabus, eligibility and exam pattern.
+              Preparing for the next cycle? Read the <Link to="/nimcet-2027" className="font-semibold text-accent underline underline-offset-4">NIMCET 2027 preparation guide</Link> or review the <Link to="/nimcet-2026" className="font-semibold text-accent underline underline-offset-4">NIMCET 2026 exam archive</Link>.
+            </p>
+          </Container>
+        </section>
       </main>
       <Footer />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: siteSchema }} />
     </div>
   )
 }

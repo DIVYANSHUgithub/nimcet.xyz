@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "admin:dev": "npm --prefix ../admin/adminFront run dev",
-    "build": "vite build && node scripts/prerender-legal.mjs",
+    "build": "vite build && node scripts/prerender-public.mjs",
     "build:deploy": "node scripts/check-deployment-env.mjs && npm run build",
     "admin:build": "npm --prefix ../admin/adminFront run build",
     "lint": "eslint .",

@@ -89,6 +89,7 @@ export default function QuestionDetail() {
           </div>
         ) : !question ? (
           <div className="rounded-xl border border-line bg-surface p-6 text-center">
+            <meta name="robots" content="noindex" />
             <h1 className="text-lg font-semibold text-ink-heading">Question not found</h1>
             <p className="mt-2 text-sm text-ink-muted">This question may have been removed or is not published.</p>
             <Link to="/questions" className="mt-5 inline-flex min-h-10 items-center rounded-md bg-ink-heading px-4 text-sm font-semibold text-on-brand hover:bg-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">Back to Question Bank</Link>

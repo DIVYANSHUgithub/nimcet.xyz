@@ -9,6 +9,9 @@ import OAuthReturn from './components/OAuthReturn'
 import DeviceSessionNotice from './components/DeviceSessionNotice'
 
 const Home = lazy(() => import('./pages/Home'))
+const AboutNimcet = lazy(() => import('./pages/AboutNimcet'))
+const Nimcet2027 = lazy(() => import('./pages/Nimcet2027'))
+const Nimcet2026 = lazy(() => import('./pages/Nimcet2026'))
 const About = lazy(() => import('./pages/About'))
 const Login = lazy(() => import('./pages/Login'))
 const Signup = lazy(() => import('./pages/Signup'))
@@ -29,6 +32,7 @@ const Profile = lazy(() => import('./pages/Profile'))
 function NotFound() {
   return (
     <main className="grid min-h-svh place-items-center bg-canvas px-5 text-center">
+      <meta name="robots" content="noindex" />
       <div>
         <h1 className="text-2xl font-bold text-ink-heading">Page not found</h1>
         <p className="mt-2 text-sm text-ink-muted">That route is not available.</p>
@@ -50,6 +54,9 @@ function App() {
         <Suspense fallback={<PageLoading />}>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/about-nimcet" element={<AboutNimcet />} />
+            <Route path="/nimcet-2027" element={<Nimcet2027 />} />
+            <Route path="/nimcet-2026" element={<Nimcet2026 />} />
             <Route path="/about" element={<About />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
